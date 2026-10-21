@@ -1,0 +1,63 @@
+================================================================================
+                    SUITE VEYVAN // ESTACION HUMANIDAD
+                      PROTOCOLO THALIOS SOLARIS v1.0
+================================================================================
+
+Bienvenido a la instalacion oficial de la Suite Veyvan, el ecosistema digital
+definitivo para la inmersion, preservacion, linguistica y estudio enciclopedico
+del dialecto Transversal y la memoria cosmica de la Estacion Humanidad.
+
+--------------------------------------------------------------------------------
+1. DESCRIPCION DEL SISTEMA
+--------------------------------------------------------------------------------
+La Suite Veyvan es una terminal de alta tecnologia creada para desentranar los
+secretos de un arca de 320 cubiertas y 20 kilometros de altura que lleva 344 anos
+viajando por el vacio interestelar en ruta hacia el prometido planeta Protozeus.
+
+Este entorno unifica la ciencia de datos, la caligrafia sagrada y la narrativa:
+
+* GLOSARIO & DATOS LEXICALES:
+  Base de datos exhaustiva del vocabulario Transversal con etimologia, raices,
+  categorias gramaticales, ejemplos contextuales y niveles de formalidad.
+
+* TRADUCTOR MULTIDIRECCIONAL:
+  Motor de traduccion bidireccional entre Espanol, Transversal estandar y
+  dialectos arcaicos, respetando la estructura flexiva y prefijal.
+
+* TALLER TAEL'IM DINAMICO:
+  Estudio tipografico y caligrafico de glifos vectoriales sagrados, trazos de
+  calamo, enlaces de resonancia y animacion fluida.
+
+* ESTUDIO DE CALIGRAMAS SAGRADOS:
+  Composicion geometrica y canonica de caligramas en anillo, espiral, hexagrama
+  y vortice, con renderizado SVG y exportacion en alta fidelidad.
+
+* ATLAS ENCICLOPEDICO DE LORE (THALIOS SOLARIS):
+  - Galeria completa de los 8 Grandes Lideres (de Vorlemm Hatz a Vireus).
+  - Tratados y biografia profunda del filosofo primordial Joren Thalvus.
+  - La doctrina de la Evolucion Consciente (Vor-Veheli) vs la eugenesia del Emulo.
+  - El contraste etico de Las Dos Madres (Vorlemm frente a Divya Magna).
+  - La Epoca Dorada (48 anos de inocencia) y los 9 meses del Gran Apagon de 2720.
+  - Cartografia de las 320 cubiertas y calculo en tiempo real del Cronosistema.
+  - El Oraculo interactivo de inteligencia cuantica de la nave.
+
+--------------------------------------------------------------------------------
+2. REQUISITOS DEL SISTEMA
+--------------------------------------------------------------------------------
+- Sistema Operativo: Windows 10 / Windows 11 (64-bit).
+- Espacio en disco: ~300 MB de almacenamiento disponible.
+- Aceleracion grafica recomendada para renderizado dinámico de particulas y caligramas.
+
+--------------------------------------------------------------------------------
+3. CONDICIONES DE USO Y CODICE
+--------------------------------------------------------------------------------
+Este software ha sido forjado bajo los principios canonicos de Estacion Humanidad.
+Queda prohibido el uso de esta suite para la difusion de propaganda represiva
+del Consejo Administrativo o la justificacion del protocolo eugenesico HAVA.
+
+"Ner'Val: La apreciacion de lo que fue, que nutre lo que sera."
+                                                   — Joren Thalvus (2690-2755)
+
+================================================================================
+Presione "Siguiente" o "Acepto" para continuar con la instalacion en su equipo.
+================================================================================

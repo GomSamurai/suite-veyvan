@@ -1,0 +1,75 @@
+{
+  "name": "glosario-transversal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Terminal de Glosario Transversal y Suite Veyvan // Protocolo Thalios Solaris",
+  "author": "Thalios Solaris",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k -r \"vite\" \"wait-on tcp:5173 && electron .\"",
+    "electron:preview": "vite build && electron .",
+    "electron:build": "vite build && electron-builder --win",
+    "electron:build:portable": "vite build && electron-builder --win portable",
+    "sync:lore": "node scripts/syncLore.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^1.38.0",
+    "lucide-react": "^0.563.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "recharts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^10.0.6",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "wait-on": "^9.5.1"
+  },
+  "build": {
+    "appId": "com.estacionhumanidad.glosariotransversal",
+    "productName": "Suite Veyvan - Glosario Transversal",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Suite Veyvan",
+      "license": "electron/assets/resumen_suite.txt",
+      "installerSidebar": "electron/assets/installer_sidebar.bmp",
+      "installerHeader": "electron/assets/installer_header.bmp"
+    }
+  }
+}
