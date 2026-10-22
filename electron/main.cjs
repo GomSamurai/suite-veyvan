@@ -14,7 +14,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Glosario Transversal // Sistema de Datos',
+    title: 'Suite Veyvan — Glosario Transversal & Atlas de Lore',
     backgroundColor: '#020617', // Previene cualquier destello blanco inicial (slate-950)
     autoHideMenuBar: true,
     show: false, // Espera a estar listo para mostrarse limpiamente

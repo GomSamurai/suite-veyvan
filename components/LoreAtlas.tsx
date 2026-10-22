@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Globe, 
   Layers, 
@@ -34,7 +34,16 @@ import {
   Moon,
   Eye,
   Skull,
-  Scale
+  Scale,
+  Download,
+  Upload,
+  RotateCcw,
+  Edit3,
+  Save,
+  PanelLeftClose,
+  PanelLeft,
+  CheckCircle2,
+  Plus
 } from 'lucide-react';
 import { 
   STATION_GLOBAL_METRICS, 
@@ -57,8 +66,18 @@ import {
   HistoricalEra,
   PhilosophicalVortex,
   LeaderProfile,
-  ThalvusWork
+  ThalvusWork,
+  StationGlobalMetrics
 } from '../data/stationLoreData';
+import { 
+  LoreStoreData, 
+  loadLoreStore, 
+  saveLoreStore, 
+  resetLoreStoreToCanonical, 
+  exportLoreToJson, 
+  importLoreFromJson 
+} from '../utils/loreStorage';
+import LoreEditModal from './LoreEditModal';
 import { playWordResonance } from '../utils/taelimAudio';
 import { getAiClient, getGeminiModel } from '../services/geminiService';
 
@@ -77,27 +96,60 @@ export type LoreSubTab =
   | 'novela' 
   | 'oraculo';
 
-const LoreAtlas: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<LoreSubTab>('lideres');
-  const [searchTerm, setSearchTerm] = useState<string>('');
+interface SidebarNavItem {
+  id: LoreSubTab;
+  label: string;
+  shortLabel: string;
+  category: 'jerarquias' | 'topologia' | 'sistemas' | 'inteligencia';
+  icon: React.ReactNode;
+  subtitle: string;
+  alert?: boolean;
+}
 
-  // Estados de Inspección de Modales / Detalles
-  const [selectedLeader, setSelectedLeader] = useState<LeaderProfile>(LEADERS_GALLERY[0]);
-  const [selectedThalvusWork, setSelectedThalvusWork] = useState<ThalvusWork>(JOREN_THALVUS_DATA.works[0]);
-  const [selectedBlackoutMonthIndex, setSelectedBlackoutMonthIndex] = useState<number>(0);
-  const [selectedDeckSector, setSelectedDeckSector] = useState<DeckSector | null>(DECK_ZONING[3]); // C233 por defecto
-  const [selectedCharacter, setSelectedCharacter] = useState<CharacterDossier | null>(CHARACTERS_DATABASE[0]); // Pwaoo
-  const [selectedEra, setSelectedEra] = useState<HistoricalEra | null>(HISTORICAL_TIMELINE[5]); // Presente
-  const [selectedVortex, setSelectedVortex] = useState<PhilosophicalVortex | null>(PHILOSOPHICAL_VORTICES[0]); // Vor-Veheli
-  const [selectedBookIndex, setSelectedBookIndex] = useState<number>(0);
-  const [deckSearchQuery, setDeckSearchQuery] = useState<string>('');
+const SIDEBAR_ITEMS: SidebarNavItem[] = [
+  // 1. Jerarquías & Historia
+  { id: 'lideres', label: 'Grandes Líderes (8)', shortLabel: 'Líderes', category: 'jerarquias', icon: <Crown size={15} />, subtitle: '8 Gobernantes Supremos' },
+  { id: 'thalvus', label: 'Especial Joren Thalvus', shortLabel: 'Thalvus', category: 'jerarquias', icon: <BookMarked size={15} />, subtitle: 'Filosofía Ner\'Val' },
+  { id: 'evolucion-madres', label: 'Evolución & Dos Madres', shortLabel: 'Dos Madres', category: 'jerarquias', icon: <Scale size={15} />, subtitle: 'Vorlëmm vs Divya' },
+  { id: 'dorada-apagon', label: 'Época Dorada & Apagón', shortLabel: 'Apagón', category: 'jerarquias', icon: <Sun size={15} />, subtitle: 'Cataclismo de 9 Meses' },
+  { id: 'cronica', label: 'Crónica (344 Años)', shortLabel: 'Crónica', category: 'jerarquias', icon: <Orbit size={15} />, subtitle: '7 Eras Históricas' },
 
-  // Calculadora de Cronosistema
-  const [calcYears, setCalcYears] = useState<number>(28);
-  const [calcNemas, setCalcNemas] = useState<number>(319);
+  // 2. Topología & Sociedad
+  { id: 'cubiertas', label: '320 Cubiertas', shortLabel: 'Cubiertas', category: 'topologia', icon: <Layers size={15} />, subtitle: 'Topología de 20 km' },
+  { id: 'personajes', label: 'Personajes & Lazos', shortLabel: 'Personajes', category: 'topologia', icon: <Users size={15} />, subtitle: 'Protagonistas y Facciones' },
+  { id: 'sociedad', label: 'Castas & Drogas', shortLabel: 'Castas', category: 'topologia', icon: <Pill size={15} />, subtitle: 'Alévoros, Soma & Quimio' },
+  { id: 'novela', label: 'La Novela (3 Libros)', shortLabel: 'Novela', category: 'topologia', icon: <BookOpen size={15} />, subtitle: 'Trilogía Estación Humanidad' },
 
-  // Reloj de la Estación en Vivo (Simulado en Viras)
+  // 3. Sistemas & Arcanos
+  { id: 'cronosistema', label: 'Cronosistema Binario', shortLabel: 'Tiempo', category: 'sistemas', icon: <Clock size={15} />, subtitle: 'Viras, Fulas y Nemas' },
+  { id: 'vortices', label: 'Los 9 Vórtices', shortLabel: 'Vórtices', category: 'sistemas', icon: <Compass size={15} />, subtitle: 'Escuela de Iccarus Dern' },
+  { id: 'hava', label: 'Dossier HAVA', shortLabel: 'HAVA', category: 'sistemas', icon: <AlertTriangle size={15} />, subtitle: 'Clasificado Obsidiana', alert: true },
+
+  // 4. Inteligencia & Archivo
+  { id: 'oraculo', label: 'Oráculo Thalios (IA)', shortLabel: 'Oráculo', category: 'inteligencia', icon: <Sparkles size={15} />, subtitle: 'Consciencia Cuántica' }
+];
+
+const CATEGORY_HEADERS: Record<string, { label: string; icon: React.ReactNode }> = {
+  jerarquias: { label: 'Jerarquías & Crónicas', icon: <Crown size={12} className="text-amber-400" /> },
+  topologia: { label: 'Topología & Ciudadanos', icon: <Layers size={12} className="text-cyan-400" /> },
+  sistemas: { label: 'Sistemas & Arcanos', icon: <Cpu size={12} className="text-purple-400" /> },
+  inteligencia: { label: 'Inteligencia de a Bordo', icon: <Sparkles size={12} className="text-emerald-400" /> }
+};
+
+// =========================================================================
+// RELOJ BINARIO EN VIVO DE ESTACIÓN HUMANIDAD (COMPONENTE AISLADO)
+// =========================================================================
+interface StationLiveClockProps {
+  yearCurrent?: string;
+  currentLocation?: string;
+}
+
+const StationLiveClock: React.FC<StationLiveClockProps> = React.memo(({
+  yearCurrent = '2952',
+  currentLocation = 'Phaetim'
+}) => {
   const [liveViras, setLiveViras] = useState<number>(() => Math.floor(Date.now() / 659) % 262144);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setLiveViras(prev => (prev + 1) % 262144);
@@ -109,6 +161,309 @@ const LoreAtlas: React.FC = () => {
   const currentKroma = Math.floor((liveViras % 32768) / 2048) + 1;
   const currentFula = Math.floor((liveViras % 2048) / 64) + 1;
   const currentViraInFula = liveViras % 64;
+
+  return (
+    <div className="p-3.5 rounded-2xl bg-black/60 border border-cyan-500/30 flex flex-col gap-1.5 min-w-[220px] shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+      <div className="flex items-center justify-between text-[9px] font-mono text-slate-400 uppercase tracking-widest border-b border-white/5 pb-1">
+        <span className="flex items-center gap-1 text-cyan-300 font-bold">
+          <Clock size={11} className="animate-pulse" />
+          <span>Reloj de la Estación</span>
+        </span>
+        <span className="text-emerald-400 font-bold">Tala 48H</span>
+      </div>
+      <div className="grid grid-cols-4 gap-1 text-center font-mono">
+        <div className="bg-white/5 p-1 rounded">
+          <span className="text-[8px] text-slate-500 block">SEMA</span>
+          <span className="text-xs font-bold text-cyan-200">#{currentSema}</span>
+        </div>
+        <div className="bg-white/5 p-1 rounded">
+          <span className="text-[8px] text-slate-500 block">KROMA</span>
+          <span className="text-xs font-bold text-cyan-200">{currentKroma}</span>
+        </div>
+        <div className="bg-white/5 p-1 rounded">
+          <span className="text-[8px] text-slate-500 block">FULA</span>
+          <span className="text-xs font-bold text-cyan-200">{currentFula}</span>
+        </div>
+        <div className="bg-white/5 p-1 rounded">
+          <span className="text-[8px] text-slate-500 block">VIRA</span>
+          <span className="text-xs font-bold text-emerald-300 animate-pulse">{currentViraInFula}</span>
+        </div>
+      </div>
+      <span className="text-[9px] font-mono text-slate-500 text-center">
+        Ciclo {yearCurrent} d.C. // Maniobra en {currentLocation}
+      </span>
+    </div>
+  );
+});
+
+// =========================================================================
+// BLOQUE DE ANOTACIONES & IDEAS DEL AUTOR (COMPONENTE ESTABLE Y MEMOIZADO)
+// =========================================================================
+interface AuthorNotesBlockProps {
+  noteKey: string;
+  title: string;
+  placeholder?: string;
+  noteValue: string;
+  onUpdateNote: (key: string, note: string) => void;
+}
+
+const AuthorNotesBlock: React.FC<AuthorNotesBlockProps> = React.memo(({
+  noteKey,
+  title,
+  placeholder,
+  noteValue,
+  onUpdateNote
+}) => {
+  const [isOpen, setIsOpen] = useState<boolean>(true);
+  const [localText, setLocalText] = useState<string>(noteValue || '');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sincronizar texto local si cambia la entidad o valor externo
+  useEffect(() => {
+    setLocalText(noteValue || '');
+  }, [noteKey, noteValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const nextVal = e.target.value;
+    setLocalText(nextVal);
+    setIsSaving(true);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      onUpdateNote(noteKey, nextVal);
+      setIsSaving(false);
+    }, 400);
+  };
+
+  const handleBlur = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    if (localText !== noteValue) {
+      onUpdateNote(noteKey, localText);
+    }
+    setIsSaving(false);
+  };
+
+  const hasContent = Boolean(localText && localText.trim());
+
+  return (
+    <div className="p-4 rounded-3xl bg-slate-950/70 border border-amber-500/20 backdrop-blur-xl space-y-2.5 transition-all">
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between cursor-pointer select-none"
+      >
+        <span className="text-xs font-mono uppercase tracking-widest text-amber-300 font-bold flex items-center gap-2">
+          <Edit3 size={13} className="text-amber-400" />
+          <span>Anotaciones & Nuevas Ideas del Autor // {title}</span>
+          {hasContent && (
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Notas activas guardadas" />
+          )}
+        </span>
+        <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+          <span className="text-slate-500 hidden sm:inline">Guardado en memoria local</span>
+          <ChevronRight size={14} className={`transform transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="space-y-2 pt-1">
+          <textarea
+            value={localText}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            placeholder={placeholder || "Escribe aquí cualquier dato nuevo, ideas para la novela, modificaciones de lore o reflexiones..."}
+            rows={3}
+            className="w-full bg-black/60 border border-white/10 rounded-2xl p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500/50 font-sans leading-relaxed resize-y select-text"
+          />
+          <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
+            <span>{localText.length} caracteres</span>
+            {isSaving ? (
+              <span className="text-amber-400 flex items-center gap-1 font-bold">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span>Guardando cambios...</span>
+              </span>
+            ) : hasContent ? (
+              <span className="text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 size={11} />
+                <span>Guardado en memoria</span>
+              </span>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+const LoreAtlas: React.FC = () => {
+  // ALMACÉN VIVO Y EDITABLE DE LORE (PERSISTENCIA TOTAL EN MEMORIA)
+  const [loreStore, setLoreStore] = useState<LoreStoreData>(() => loadLoreStore());
+  const [activeSubTab, setActiveSubTab] = useState<LoreSubTab>('lideres');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sidebarSearch, setSidebarSearch] = useState<string>('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isEditMode, setIsEditMode] = useState<boolean>(true);
+
+  // Modal Universal de Edición
+  const [editingEntity, setEditingEntity] = useState<{
+    type: 'leader' | 'character' | 'deck' | 'thalvusWork' | 'era' | 'metrics';
+    item: any;
+    workIndex?: number;
+  } | null>(null);
+
+  // Estados de Inspección de Modales / Detalles basados en ID reactivo
+  const [selectedLeaderId, setSelectedLeaderId] = useState<string>('vorlemm');
+  const selectedLeader = useMemo(() => {
+    return loreStore.leaders.find(l => l.id === selectedLeaderId) || loreStore.leaders[0];
+  }, [loreStore.leaders, selectedLeaderId]);
+
+  const [selectedThalvusWorkIndex, setSelectedThalvusWorkIndex] = useState<number>(0);
+  const selectedThalvusWork = useMemo(() => {
+    return loreStore.thalvus.works[selectedThalvusWorkIndex] || loreStore.thalvus.works[0];
+  }, [loreStore.thalvus.works, selectedThalvusWorkIndex]);
+
+  const [selectedBlackoutMonthIndex, setSelectedBlackoutMonthIndex] = useState<number>(0);
+
+  const [selectedDeckRange, setSelectedDeckRange] = useState<string>('C201-C240');
+  const selectedDeckSector = useMemo(() => {
+    return loreStore.decks.find(d => d.deckRange === selectedDeckRange) || loreStore.decks[3] || loreStore.decks[0];
+  }, [loreStore.decks, selectedDeckRange]);
+
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string>('pwaoo');
+  const selectedCharacter = useMemo(() => {
+    return loreStore.characters.find(c => c.id === selectedCharacterId) || loreStore.characters[0];
+  }, [loreStore.characters, selectedCharacterId]);
+
+  const [selectedEraId, setSelectedEraId] = useState<string>('era_6');
+  const selectedEra = useMemo(() => {
+    return loreStore.timeline.find(e => e.id === selectedEraId) || loreStore.timeline[5] || loreStore.timeline[0];
+  }, [loreStore.timeline, selectedEraId]);
+
+  const [selectedVortexId, setSelectedVortexId] = useState<string>('vor-veheli');
+  const selectedVortex = useMemo(() => {
+    return loreStore.vortices.find(v => v.id === selectedVortexId) || loreStore.vortices[0];
+  }, [loreStore.vortices, selectedVortexId]);
+
+  const [selectedBookIndex, setSelectedBookIndex] = useState<number>(0);
+  const [deckSearchQuery, setDeckSearchQuery] = useState<string>('');
+
+  // Guardado y actualización en memoria viva
+  const handleSaveEntity = (type: string, data: any, extra?: any) => {
+    setLoreStore(prev => {
+      const next = { ...prev };
+      if (type === 'leader') {
+        next.leaders = next.leaders.map(l => l.id === data.id ? data : l);
+      } else if (type === 'character') {
+        next.characters = next.characters.map(c => c.id === data.id ? data : c);
+      } else if (type === 'deck') {
+        next.decks = next.decks.map(d => d.deckRange === data.deckRange ? data : d);
+      } else if (type === 'thalvusWork') {
+        const works = [...next.thalvus.works];
+        if (typeof extra === 'number' && works[extra]) {
+          works[extra] = data;
+        }
+        next.thalvus = { ...next.thalvus, works };
+      } else if (type === 'era') {
+        next.timeline = next.timeline.map(e => e.id === data.id ? data : e);
+      } else if (type === 'metrics') {
+        next.metrics = { ...data };
+      }
+      saveLoreStore(next);
+      return next;
+    });
+  };
+
+  const handleUpdateNote = (key: string, note: string) => {
+    setLoreStore(prev => {
+      const next = {
+        ...prev,
+        customNotes: {
+          ...prev.customNotes,
+          [key]: note
+        }
+      };
+      saveLoreStore(next);
+      return next;
+    });
+  };
+
+  const handleResetCanon = () => {
+    if (window.confirm('¿Deseas restaurar todo el Lore canónico original? Se perderán las modificaciones no exportadas.')) {
+      const reset = resetLoreStoreToCanonical();
+      setLoreStore(reset);
+      setSelectedLeaderId('vorlemm');
+      setSelectedDeckRange('C201-C240');
+      setSelectedCharacterId('pwaoo');
+      setSelectedEraId('era_6');
+      setSelectedVortexId('vor-veheli');
+    }
+  };
+
+  const handleExportJson = () => {
+    const json = exportLoreToJson(loreStore);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `estacion_humanidad_lore_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const loaded = importLoreFromJson(content);
+        setLoreStore(loaded);
+        alert('¡Lore importado y guardado en memoria con éxito!');
+      } catch (err: any) {
+        alert('Error al importar archivo: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = '';
+  };
+
+  // Contabilidad de notas de autor
+  const totalNotesCount = useMemo(() => {
+    return Object.values(loreStore.customNotes || {}).filter(v => Boolean(v && v.trim())).length;
+  }, [loreStore.customNotes]);
+
+  const isLoreModified = useMemo(() => {
+    return Boolean(loreStore.lastModified || totalNotesCount > 0);
+  }, [loreStore.lastModified, totalNotesCount]);
+
+  const getSubTabNotesCount = (subtabId: LoreSubTab): number => {
+    const notes = loreStore.customNotes || {};
+    return Object.keys(notes).filter(key => {
+      if (!notes[key]?.trim()) return false;
+      if (subtabId === 'lideres' && key.startsWith('leader_')) return true;
+      if (subtabId === 'cubiertas' && key.startsWith('deck_')) return true;
+      if (subtabId === 'personajes' && key.startsWith('char_')) return true;
+      if (subtabId === 'thalvus' && key.startsWith('thalvus_')) return true;
+      if (subtabId === 'cronica' && key.startsWith('era_')) return true;
+      if (subtabId === 'vortices' && key.startsWith('vortex_')) return true;
+      if (subtabId === 'evolucion-madres' && key === 'evolucion_madres_notes') return true;
+      if (subtabId === 'dorada-apagon' && key === 'dorada_apagon_notes') return true;
+      if (subtabId === 'novela' && key.startsWith('book_')) return true;
+      if (key === `section_${subtabId}`) return true;
+      if (key === `${subtabId}_notes`) return true;
+      return false;
+    }).length;
+  };
+
+  // Calculadora de Cronosistema
+  const [calcYears, setCalcYears] = useState<number>(28);
+  const [calcNemas, setCalcNemas] = useState<number>(319);
 
   // Terminal del Oráculo de Thalios Solaris
   const [oracleQuery, setOracleQuery] = useState<string>('');
@@ -190,31 +545,31 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
 
   // Filtrado de personajes por búsqueda
   const filteredCharacters = useMemo(() => {
-    if (!searchTerm.trim()) return CHARACTERS_DATABASE;
+    if (!searchTerm.trim()) return loreStore.characters;
     const q = searchTerm.toLowerCase();
-    return CHARACTERS_DATABASE.filter(c => 
+    return loreStore.characters.filter(c => 
       c.name.toLowerCase().includes(q) || 
       c.alias.toLowerCase().includes(q) || 
       c.deckOrigin.toLowerCase().includes(q) ||
       c.role.toLowerCase().includes(q)
     );
-  }, [searchTerm]);
+  }, [searchTerm, loreStore.characters]);
 
   // Salto a cubierta por número
   const handleJumpToDeck = (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseInt(deckSearchQuery.replace(/\D/g, ''), 10);
     if (!isNaN(num) && num >= 1 && num <= 320) {
-      const found = DECK_ZONING.find(sec => {
+      const found = loreStore.decks.find(sec => {
         const parts = sec.deckRange.replace(/C/g, '').split('-').map(s => parseInt(s.trim(), 10));
         return num >= parts[0] && num <= parts[1];
       });
-      if (found) setSelectedDeckSector(found);
+      if (found) setSelectedDeckRange(found.deckRange);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 select-none">
+    <div className="space-y-6 w-full max-w-[99vw] 2xl:max-w-[1920px] mx-auto pb-12 select-none px-2 sm:px-4">
       {/* ========================================================================= */}
       {/* ENCABEZADO MONUMENTAL // PROTOCOLO THALIOS SOLARIS                        */}
       {/* ========================================================================= */}
@@ -241,113 +596,229 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
             </p>
           </div>
 
-          {/* Reloj Activo del Cronosistema */}
-          <div className="p-3.5 rounded-2xl bg-black/60 border border-cyan-500/30 flex flex-col gap-1.5 min-w-[220px] shadow-[0_0_20px_rgba(34,211,238,0.15)]">
-            <div className="flex items-center justify-between text-[9px] font-mono text-slate-400 uppercase tracking-widest border-b border-white/5 pb-1">
-              <span className="flex items-center gap-1 text-cyan-300 font-bold">
-                <Clock size={11} className="animate-pulse" />
-                <span>Reloj de la Estación</span>
-              </span>
-              <span className="text-emerald-400 font-bold">Tala 48H</span>
-            </div>
-            <div className="grid grid-cols-4 gap-1 text-center font-mono">
-              <div className="bg-white/5 p-1 rounded">
-                <span className="text-[8px] text-slate-500 block">SEMA</span>
-                <span className="text-xs font-bold text-cyan-200">#{currentSema}</span>
-              </div>
-              <div className="bg-white/5 p-1 rounded">
-                <span className="text-[8px] text-slate-500 block">KROMA</span>
-                <span className="text-xs font-bold text-cyan-200">{currentKroma}</span>
-              </div>
-              <div className="bg-white/5 p-1 rounded">
-                <span className="text-[8px] text-slate-500 block">FULA</span>
-                <span className="text-xs font-bold text-cyan-200">{currentFula}</span>
-              </div>
-              <div className="bg-white/5 p-1 rounded">
-                <span className="text-[8px] text-slate-500 block">VIRA</span>
-                <span className="text-xs font-bold text-emerald-300 animate-pulse">{currentViraInFula}</span>
-              </div>
-            </div>
-            <span className="text-[9px] font-mono text-slate-500 text-center">
-              Ciclo 2952 d.C. // Maniobra en Phaetim
-            </span>
-          </div>
+          {/* Reloj Activo del Cronosistema Aislado */}
+          <StationLiveClock
+            yearCurrent={loreStore.metrics.yearCurrent}
+            currentLocation={loreStore.metrics.currentLocation}
+          />
         </div>
 
-        {/* MÉTRICAS GLOBALES VITALES */}
-        <div className="mt-6 pt-6 border-t border-white/5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
-            <span className="text-[9px] font-mono text-slate-400 block uppercase">Tiempo de Viaje:</span>
-            <span className="text-sm font-bold font-mono text-cyan-300">344 AÑOS</span>
-            <span className="text-[9px] text-slate-500 block">2672 ➔ 2952 d.C.</span>
+        {/* MÉTRICAS GLOBALES VITALES EDITABLES */}
+        <div className="mt-6 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 flex-1 w-full">
+            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
+              <span className="text-[9px] font-mono text-slate-400 block uppercase">Tiempo de Viaje:</span>
+              <span className="text-sm font-bold font-mono text-cyan-300">{loreStore.metrics.travelYears} AÑOS</span>
+              <span className="text-[9px] text-slate-500 block">2672 ➔ {loreStore.metrics.yearCurrent} d.C.</span>
+            </div>
+            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
+              <span className="text-[9px] font-mono text-slate-400 block uppercase">Estructura Vertical:</span>
+              <span className="text-sm font-bold font-mono text-cyan-300">{loreStore.metrics.activeDecks} CUBIERTAS</span>
+              <span className="text-[9px] text-slate-500 block">20 km de altura total</span>
+            </div>
+            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
+              <span className="text-[9px] font-mono text-slate-400 block uppercase">Población Activa:</span>
+              <span className="text-sm font-bold font-mono text-cyan-300">{loreStore.metrics.currentPopulation}</span>
+              <span className="text-[9px] text-slate-500 block">8% del diseño original</span>
+            </div>
+            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
+              <span className="text-[9px] font-mono text-slate-400 block uppercase">Potencia Reactor:</span>
+              <span className="text-sm font-bold font-mono text-amber-300">{loreStore.metrics.reactorStatus}</span>
+              <span className="text-[9px] text-slate-500 block">Post-Apagón año 72.4</span>
+            </div>
+            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
+              <span className="text-[9px] font-mono text-slate-400 block uppercase">Ubicación Actual:</span>
+              <span className="text-sm font-bold font-mono text-cyan-300">{loreStore.metrics.currentLocation}</span>
+              <span className="text-[9px] text-slate-500 block">Gigante Azul de frenado</span>
+            </div>
+            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
+              <span className="text-[9px] font-mono text-slate-400 block uppercase">Destino Final:</span>
+              <span className="text-sm font-bold font-mono text-emerald-300">{loreStore.metrics.promisedLand}</span>
+              <span className="text-[9px] text-slate-500 block">3023 d.C. (71 años)</span>
+            </div>
           </div>
-          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
-            <span className="text-[9px] font-mono text-slate-400 block uppercase">Estructura Vertical:</span>
-            <span className="text-sm font-bold font-mono text-cyan-300">320 CUBIERTAS</span>
-            <span className="text-[9px] text-slate-500 block">20 km de altura total</span>
-          </div>
-          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
-            <span className="text-[9px] font-mono text-slate-400 block uppercase">Población Activa:</span>
-            <span className="text-sm font-bold font-mono text-cyan-300">1.200.000</span>
-            <span className="text-[9px] text-slate-500 block">8% del diseño original</span>
-          </div>
-          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
-            <span className="text-[9px] font-mono text-slate-400 block uppercase">Potencia Reactor:</span>
-            <span className="text-sm font-bold font-mono text-amber-300">42% (MUTILADO)</span>
-            <span className="text-[9px] text-slate-500 block">Post-Apagón año 72.4</span>
-          </div>
-          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
-            <span className="text-[9px] font-mono text-slate-400 block uppercase">Ubicación Actual:</span>
-            <span className="text-sm font-bold font-mono text-cyan-300">PHAETIM</span>
-            <span className="text-[9px] text-slate-500 block">Gigante Azul de frenado</span>
-          </div>
-          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/5">
-            <span className="text-[9px] font-mono text-slate-400 block uppercase">Destino Final:</span>
-            <span className="text-sm font-bold font-mono text-emerald-300">PROTOZEUS</span>
-            <span className="text-[9px] text-slate-500 block">3023 d.C. (71 años)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* NAVEGACIÓN POR VENTANAS DE LORE (13 VENTANAS MAESTRAS)                    */}
-      {/* ========================================================================= */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar text-xs font-rajdhani uppercase tracking-wider font-bold">
-        {[
-          { id: 'lideres' as LoreSubTab, label: 'Grandes Líderes (8)', icon: <Crown size={14} /> },
-          { id: 'thalvus' as LoreSubTab, label: 'Especial Joren Thalvus', icon: <BookMarked size={14} /> },
-          { id: 'evolucion-madres' as LoreSubTab, label: 'Evolución & Dos Madres', icon: <Scale size={14} /> },
-          { id: 'dorada-apagon' as LoreSubTab, label: 'Época Dorada & Apagón', icon: <Sun size={14} /> },
-          { id: 'cronica' as LoreSubTab, label: 'Crónica (344 Años)', icon: <Orbit size={14} /> },
-          { id: 'cubiertas' as LoreSubTab, label: '320 Cubiertas', icon: <Layers size={14} /> },
-          { id: 'personajes' as LoreSubTab, label: 'Personajes & Lazos', icon: <Users size={14} /> },
-          { id: 'cronosistema' as LoreSubTab, label: 'Cronosistema', icon: <Clock size={14} /> },
-          { id: 'vortices' as LoreSubTab, label: 'Los 9 Vórtices', icon: <Compass size={14} /> },
-          { id: 'hava' as LoreSubTab, label: 'Dossier HAVA', icon: <AlertTriangle size={14} />, alert: true },
-          { id: 'sociedad' as LoreSubTab, label: 'Castas & Drogas', icon: <Pill size={14} /> },
-          { id: 'novela' as LoreSubTab, label: 'La Novela (3 Libros)', icon: <BookOpen size={14} /> },
-          { id: 'oraculo' as LoreSubTab, label: 'Oráculo Thalios (IA)', icon: <Sparkles size={14} /> }
-        ].map(tab => (
           <button
-            key={tab.id}
-            onClick={() => {
-              setActiveSubTab(tab.id);
-              playWordResonance('Khor');
-            }}
-            className={`px-3.5 py-2.5 rounded-2xl border transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${
-              activeSubTab === tab.id
-                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-[0_0_15px_rgba(34,211,238,0.35)] ring-1 ring-cyan-500/40'
-                : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
+            onClick={() => setEditingEntity({ type: 'metrics', item: loreStore.metrics })}
+            className="px-3 py-2 rounded-2xl bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 hover:border-cyan-500/60 text-cyan-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+            title="Editar Métricas Globales de la Estación"
           >
-            <span className={activeSubTab === tab.id ? 'text-cyan-300' : 'text-slate-500'}>{tab.icon}</span>
-            <span>{tab.label}</span>
-            {tab.alert && (
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Clasificado Obsidiana" />
-            )}
+            <Edit3 size={13} className="text-cyan-400" />
+            <span>Editar Métricas</span>
           </button>
-        ))}
+        </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* BARRA DE HERRAMIENTAS DEL AUTOR // CONTROL DE MEMORIA Y PERSISTENCIA      */}
+      {/* ========================================================================= */}
+      <div className="p-3 sm:p-4 rounded-3xl bg-slate-950/70 border border-white/10 backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="p-2 sm:px-3 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-mono font-bold flex items-center gap-2 transition-all cursor-pointer"
+            title={isSidebarCollapsed ? "Expandir Barra Lateral" : "Colapsar Barra Lateral"}
+          >
+            {isSidebarCollapsed ? <PanelLeft size={15} className="text-cyan-400" /> : <PanelLeftClose size={15} className="text-cyan-400" />}
+            <span className="hidden md:inline">{isSidebarCollapsed ? 'Mostrar Menú' : 'Ocultar Menú'}</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${isLoreModified ? 'bg-amber-400 animate-pulse' : 'bg-cyan-400'}`} />
+            <div className="text-xs font-mono">
+              <span className="text-slate-200 font-bold block sm:inline">
+                {isLoreModified ? 'Canon Personalizado (En Memoria)' : 'Canon Canónico Predeterminado'}
+              </span>
+              {totalNotesCount > 0 && (
+                <span className="text-amber-400 text-[10px] ml-0 sm:ml-2">
+                  ● {totalNotesCount} {totalNotesCount === 1 ? 'anotación activa' : 'anotaciones activas'}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleExportJson}
+            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-cyan-950/60 border border-white/10 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-200 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Descargar copia de seguridad en JSON de todo el lore y tus notas"
+          >
+            <Download size={13} className="text-cyan-400" />
+            <span>Exportar JSON</span>
+          </button>
+
+          <label className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-cyan-950/60 border border-white/10 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-200 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer">
+            <Upload size={13} className="text-emerald-400" />
+            <span>Importar JSON</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleImportJson}
+              className="hidden"
+            />
+          </label>
+
+          {isLoreModified && (
+            <button
+              onClick={handleResetCanon}
+              className="px-3 py-1.5 rounded-xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Restaurar a los textos canónicos originales predeterminados"
+            >
+              <RotateCcw size={13} />
+              <span>Restaurar Canon</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* CUERPO PRINCIPAL: BARRA LATERAL DINÁMICA + CONTENIDO EXTENSIBLE           */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* BARRA LATERAL DINÁMICA (CATEGORIZADA & CON BÚSQUEDA) */}
+        <aside className={`transition-all duration-300 shrink-0 w-full ${
+          isSidebarCollapsed ? 'lg:w-20' : 'lg:w-72 xl:w-80'
+        }`}>
+          <div className="p-3 sm:p-4 rounded-3xl bg-slate-950/80 border border-white/10 backdrop-blur-2xl space-y-4 sticky top-6 shadow-[0_15px_40px_rgba(0,0,0,0.6)]">
+            {/* Buscador de secciones */}
+            {!isSidebarCollapsed && (
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-2.5 text-slate-500" />
+                <input
+                  type="text"
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  placeholder="Filtrar secciones del archivo..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs font-mono text-cyan-200 placeholder:text-slate-600 outline-none focus:border-cyan-500/50"
+                />
+              </div>
+            )}
+
+            {/* Secciones agrupadas por categorías */}
+            <div className="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+              {(['jerarquias', 'topologia', 'sistemas', 'inteligencia'] as const).map(catKey => {
+                const catInfo = CATEGORY_HEADERS[catKey];
+                const items = SIDEBAR_ITEMS.filter(item => {
+                  if (item.category !== catKey) return false;
+                  if (!sidebarSearch.trim()) return true;
+                  const q = sidebarSearch.toLowerCase();
+                  return item.label.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q);
+                });
+
+                if (items.length === 0) return null;
+
+                return (
+                  <div key={catKey} className="space-y-1.5">
+                    {!isSidebarCollapsed ? (
+                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono uppercase tracking-widest text-slate-500 border-b border-white/5">
+                        {catInfo.icon}
+                        <span className="font-bold">{catInfo.label}</span>
+                      </div>
+                    ) : (
+                      <div className="w-full h-px bg-white/5 my-2" />
+                    )}
+
+                    <div className="space-y-1">
+                      {items.map(tab => {
+                        const isActive = activeSubTab === tab.id;
+                        const notesCount = getSubTabNotesCount(tab.id);
+
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => {
+                              setActiveSubTab(tab.id);
+                              playWordResonance('Khor');
+                            }}
+                            title={tab.label + ': ' + tab.subtitle}
+                            className={`w-full text-left transition-all cursor-pointer rounded-2xl flex items-center gap-3 ${
+                              isSidebarCollapsed ? 'p-3 justify-center' : 'p-3'
+                            } ${
+                              isActive
+                                ? 'bg-cyan-950/80 border border-cyan-500/60 text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.25)] ring-1 ring-cyan-500/30'
+                                : 'border border-transparent bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <span className={`shrink-0 ${isActive ? 'text-cyan-300' : 'text-slate-500'}`}>
+                              {tab.icon}
+                            </span>
+
+                            {!isSidebarCollapsed && (
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-xs font-bold font-rajdhani uppercase tracking-wider truncate block">
+                                    {tab.label}
+                                  </span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {tab.alert && (
+                                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Clasificado Obsidiana" />
+                                    )}
+                                    {notesCount > 0 && (
+                                      <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono">
+                                        {notesCount}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-mono block truncate">
+                                  {tab.subtitle}
+                                </span>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+
+        {/* CONTENEDOR PRINCIPAL EXTENSIBLE */}
+        <main className="flex-1 min-w-0 w-full space-y-6">
 
       {/* ========================================================================= */}
       {/* VENTANA: GRANDES LÍDERES DE LA ESTACIÓN (8 GOBERNANTES)                    */}
@@ -366,13 +837,14 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               </div>
 
               <div className="space-y-2.5 max-h-[620px] overflow-y-auto pr-1">
-                {LEADERS_GALLERY.map((leader, lIdx) => {
+                {loreStore.leaders.map((leader, lIdx) => {
                   const isSelected = selectedLeader.id === leader.id;
+                  const hasCustomNotes = Boolean(loreStore.customNotes[`leader_${leader.id}`]?.trim());
                   return (
                     <div
                       key={leader.id}
                       onClick={() => {
-                        setSelectedLeader(leader);
+                        setSelectedLeaderId(leader.id);
                         playWordResonance('Khor');
                       }}
                       className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1.5 ${
@@ -390,9 +862,14 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                             {leader.name}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-400">
-                          {leader.period}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {hasCustomNotes && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400" title="Contiene anotaciones del autor" />
+                          )}
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {leader.period}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-xs text-slate-400 font-medium">
                         {leader.epithet}
@@ -419,9 +896,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-mono uppercase font-bold tracking-wider ${selectedLeader.colorScheme.badge}`}>
                     {selectedLeader.title}
                   </span>
-                  <span className="text-xs font-mono text-slate-400">
-                    Mandato: <strong className="text-slate-200">{selectedLeader.period}</strong> ({selectedLeader.mandateYears} años)
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingEntity({ type: 'leader', item: selectedLeader })}
+                      className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.2)]"
+                      title="Editar Biografía, Hitos, Mandato y Datos de este Líder"
+                    >
+                      <Edit3 size={11} />
+                      <span>Editar Ficha</span>
+                    </button>
+                    <span className="text-xs font-mono text-slate-400">
+                      Mandato: <strong className="text-slate-200">{selectedLeader.period}</strong> ({selectedLeader.mandateYears} años)
+                    </span>
+                  </div>
                 </div>
                 <h3 className={`text-2xl font-bold font-rajdhani uppercase tracking-wider ${selectedLeader.colorScheme.accent}`}>
                   {selectedLeader.name}
@@ -487,6 +974,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 </div>
               </div>
             </div>
+
+            {/* Bloque de Anotaciones del Autor */}
+            <AuthorNotesBlock
+              noteKey={`leader_${selectedLeader.id}`}
+              title={selectedLeader.name}
+              placeholder={`Anotaciones del autor sobre ${selectedLeader.name}: detalles biográficos, intrigas con la corte, secretos del mandato o ideas para la novela...`}
+              noteValue={loreStore.customNotes[`leader_${selectedLeader.id}`] || ''}
+              onUpdateNote={handleUpdateNote}
+            />
           </div>
         </div>
       )}
@@ -628,13 +1124,13 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Selector de Obras */}
               <div className="lg:col-span-5 space-y-2">
-                {JOREN_THALVUS_DATA.works.map((work) => {
+                {loreStore.thalvus.works.map((work, wIdx) => {
                   const isSelected = selectedThalvusWork.id === work.id;
                   return (
                     <div
                       key={work.id}
                       onClick={() => {
-                        setSelectedThalvusWork(work);
+                        setSelectedThalvusWorkIndex(wIdx);
                         playWordResonance('Khor');
                       }}
                       className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1 ${
@@ -666,9 +1162,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                     <span className="text-xs font-mono text-cyan-400 font-bold uppercase tracking-wider">
                       {selectedThalvusWork.genre}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">
-                      Año: {selectedThalvusWork.year}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditingEntity({ type: 'thalvusWork', item: selectedThalvusWork, workIndex: selectedThalvusWorkIndex })}
+                        className="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                        title="Editar Texto y Datos de esta Obra"
+                      >
+                        <Edit3 size={10} />
+                        <span>Editar</span>
+                      </button>
+                      <span className="text-xs font-mono text-slate-400">
+                        Año: {selectedThalvusWork.year}
+                      </span>
+                    </div>
                   </div>
                   <h4 className="text-xl font-bold font-rajdhani text-white uppercase tracking-wider">
                     {selectedThalvusWork.title}
@@ -708,6 +1214,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 </div>
               </div>
             </div>
+
+            {/* Bloque de Anotaciones del Autor */}
+            <AuthorNotesBlock
+              noteKey="thalvus_notes"
+              title="Joren Thalvus & Ner'Val"
+              placeholder="Anotaciones sobre Joren Thalvus, la doctrina de Ner'Val, sus obras y citas canónicas..."
+              noteValue={loreStore.customNotes['thalvus_notes'] || ''}
+              onUpdateNote={handleUpdateNote}
+            />
           </div>
         </div>
       )}
@@ -858,6 +1373,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 {DOS_MADRES_DATA.theBronzeStatuesContrast}
               </p>
             </div>
+
+            {/* Bloque de Anotaciones del Autor */}
+            <AuthorNotesBlock
+              noteKey="evolucion_madres_notes"
+              title="Evolución Consciente & Las Dos Madres"
+              placeholder="Anotaciones sobre Divya Magna, Vorlemm, la eugenesia cuántica y las dos visiones de la humanidad..."
+              noteValue={loreStore.customNotes['evolucion_madres_notes'] || ''}
+              onUpdateNote={handleUpdateNote}
+            />
           </div>
         </div>
       )}
@@ -1031,6 +1555,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 ))}
               </div>
             </div>
+
+            {/* Bloque de Anotaciones del Autor */}
+            <AuthorNotesBlock
+              noteKey="dorada_apagon_notes"
+              title="Época Dorada & El Gran Apagón"
+              placeholder="Anotaciones sobre la utopía de los primeros años, el colapso del reactor y la congelación de las cubiertas..."
+              noteValue={loreStore.customNotes['dorada_apagon_notes'] || ''}
+              onUpdateNote={handleUpdateNote}
+            />
           </div>
         </div>
       )}
@@ -1051,12 +1584,13 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               </div>
 
               <div className="space-y-2 max-h-[550px] overflow-y-auto pr-1">
-                {HISTORICAL_TIMELINE.map((era, eIdx) => {
+                {loreStore.timeline.map((era, eIdx) => {
                   const isSelected = selectedEra?.id === era.id;
+                  const hasEraNotes = Boolean(loreStore.customNotes[`era_${era.id}`]?.trim());
                   return (
                     <div
                       key={era.id}
-                      onClick={() => setSelectedEra(era)}
+                      onClick={() => setSelectedEraId(era.id)}
                       className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1.5 ${
                         isSelected
                           ? 'border-cyan-500 bg-cyan-950/40 shadow-[0_0_15px_rgba(34,211,238,0.25)]'
@@ -1067,13 +1601,18 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/50 border border-white/10 text-cyan-300 font-bold">
                           {era.years}
                         </span>
-                        <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                          era.status === 'presente' 
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold' 
-                            : (era.status === 'futura' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500')
-                        }`}>
-                          {era.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {hasEraNotes && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400" title="Contiene notas del autor" />
+                          )}
+                          <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                            era.status === 'presente' 
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold' 
+                              : (era.status === 'futura' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500')
+                          }`}>
+                            {era.status}
+                          </span>
+                        </div>
                       </div>
                       <h4 className="text-xs font-mono font-bold text-slate-200">
                         {era.stage}
@@ -1089,7 +1628,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
           </div>
 
           {/* Ficha Profunda de la Era Seleccionada */}
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-7 space-y-4">
             {selectedEra && (
               <div className="p-6 rounded-3xl bg-slate-950/80 border border-white/10 space-y-5 shadow-2xl animate-fade-in">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4 flex-wrap gap-2">
@@ -1101,9 +1640,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                       {selectedEra.leader} — {selectedEra.title}
                     </h3>
                   </div>
-                  <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-cyan-950/80 border border-cyan-500/40 text-cyan-200">
-                    Estado: {selectedEra.status.toUpperCase()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingEntity({ type: 'era', item: selectedEra })}
+                      className="px-2.5 py-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+                      title="Editar Datos, Años, Hitos y Resumen de esta Era"
+                    >
+                      <Edit3 size={11} />
+                      <span>Editar Era</span>
+                    </button>
+                    <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-cyan-950/80 border border-cyan-500/40 text-cyan-200">
+                      Estado: {selectedEra.status.toUpperCase()}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1139,6 +1688,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 </div>
               </div>
             )}
+
+            {/* Bloque de Anotaciones del Autor */}
+            <AuthorNotesBlock
+              noteKey={`era_${selectedEra?.id}`}
+              title={`Era ${selectedEra?.years}: ${selectedEra?.title}`}
+              placeholder="Anotaciones históricas de esta etapa, conflictos, hitos y notas para la novela..."
+              noteValue={loreStore.customNotes[`era_${selectedEra?.id}`] || ''}
+              onUpdateNote={handleUpdateNote}
+            />
           </div>
         </div>
       )}
@@ -1178,12 +1736,13 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
 
               {/* Lista Vertical de los 9 Sectores */}
               <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
-                {DECK_ZONING.map(sector => {
-                  const isSelected = selectedDeckSector?.id === sector.id;
+                {loreStore.decks.map(sector => {
+                  const isSelected = selectedDeckSector?.deckRange === sector.deckRange;
+                  const hasDeckNotes = Boolean(loreStore.customNotes[`deck_${sector.deckRange}`]?.trim());
                   return (
                     <div
                       key={sector.id}
-                      onClick={() => setSelectedDeckSector(sector)}
+                      onClick={() => setSelectedDeckRange(sector.deckRange)}
                       className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected
                           ? 'border-cyan-500 bg-cyan-950/50 shadow-[0_0_15px_rgba(34,211,238,0.25)]'
@@ -1205,9 +1764,14 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="text-[10px] font-mono font-bold block text-amber-300">
-                          {sector.energyPct}
-                        </span>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {hasDeckNotes && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400" title="Contiene notas del autor" />
+                          )}
+                          <span className="text-[10px] font-mono font-bold block text-amber-300">
+                            {sector.energyPct}
+                          </span>
+                        </div>
                         <span className="text-[9px] font-mono text-slate-500 block">
                           {sector.tempRange.split('(')[0]}
                         </span>
@@ -1220,7 +1784,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
           </div>
 
           {/* Ficha Técnica del Sector de Cubiertas Seleccionado */}
-          <div className="lg:col-span-6">
+          <div className="lg:col-span-6 space-y-4">
             {selectedDeckSector && (
               <div className="p-6 rounded-3xl bg-slate-950/80 border border-white/10 space-y-4 shadow-2xl animate-fade-in">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
@@ -1233,12 +1797,22 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                     </h3>
                   </div>
 
-                  {selectedDeckSector.havaImpact && (
-                    <span className="px-2.5 py-1 rounded-xl text-[9px] font-mono font-bold bg-rose-950/80 border border-rose-500/40 text-rose-300 flex items-center gap-1 shadow-[0_0_10px_rgba(244,63,94,0.3)]">
-                      <AlertTriangle size={11} />
-                      <span>BLANCO HAVA</span>
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingEntity({ type: 'deck', item: selectedDeckSector })}
+                      className="px-2.5 py-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+                      title="Editar Datos, Clima, Temperatura y Descripción de este Sector"
+                    >
+                      <Edit3 size={11} />
+                      <span>Editar Cubierta</span>
+                    </button>
+                    {selectedDeckSector.havaImpact && (
+                      <span className="px-2.5 py-1 rounded-xl text-[9px] font-mono font-bold bg-rose-950/80 border border-rose-500/40 text-rose-300 flex items-center gap-1 shadow-[0_0_10px_rgba(244,63,94,0.3)]">
+                        <AlertTriangle size={11} />
+                        <span>BLANCO HAVA</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Métricas del Sector */}
@@ -1286,6 +1860,17 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 </div>
               </div>
             )}
+
+            {/* Bloque de Anotaciones del Autor */}
+            {selectedDeckSector && (
+              <AuthorNotesBlock
+                noteKey={`deck_${selectedDeckSector.deckRange}`}
+                title={`Sector ${selectedDeckSector.deckRange} (${selectedDeckSector.name.split('//')[0]})`}
+                placeholder={`Anotaciones del autor para ${selectedDeckSector.deckRange}: vida cotidiana, temperatura, facciones locales o sucesos...`}
+                noteValue={loreStore.customNotes[`deck_${selectedDeckSector.deckRange}`] || ''}
+                onUpdateNote={handleUpdateNote}
+              />
+            )}
           </div>
         </div>
       )}
@@ -1320,10 +1905,14 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
                 {filteredCharacters.map(char => {
                   const isSelected = selectedCharacter?.id === char.id;
+                  const hasCharNotes = Boolean(loreStore.customNotes[`char_${char.id}`]?.trim());
                   return (
                     <div
                       key={char.id}
-                      onClick={() => setSelectedCharacter(char)}
+                      onClick={() => {
+                        setSelectedCharacterId(char.id);
+                        playWordResonance('Khor');
+                      }}
                       className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected
                           ? 'border-cyan-500 bg-cyan-950/50 shadow-[0_0_15px_rgba(34,211,238,0.25)]'
@@ -1331,7 +1920,12 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                       }`}
                     >
                       <div>
-                        <h4 className="text-xs font-mono font-bold text-white">{char.name}</h4>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-mono font-bold text-white">{char.name}</h4>
+                          {hasCharNotes && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400" title="Contiene notas del autor" />
+                          )}
+                        </div>
                         <span className="text-[10px] text-cyan-400 font-mono block">{char.alias}</span>
                         <span className="text-[9px] text-slate-500 font-sans block">{char.deckOrigin}</span>
                       </div>
@@ -1347,7 +1941,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
           </div>
 
           {/* Dossier Extenso del Personaje */}
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-7 space-y-4">
             {selectedCharacter && (
               <div className="p-6 rounded-3xl bg-slate-950/80 border border-white/10 space-y-4 shadow-2xl animate-fade-in">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4 flex-wrap gap-2">
@@ -1360,9 +1954,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                     </h3>
                     <span className="text-xs font-mono text-amber-300 italic">«{selectedCharacter.alias}»</span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs font-mono font-bold text-cyan-300 block">{selectedCharacter.ageYears} Años Terrestres</span>
-                    <span className="text-[10px] font-mono text-slate-500 block">{selectedCharacter.ageNemas} Nemas de Vida</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingEntity({ type: 'character', item: selectedCharacter })}
+                      className="px-2.5 py-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+                      title="Editar Biografía, Rasgos, Dilema Moral y Arco Narrativo de este Personaje"
+                    >
+                      <Edit3 size={11} />
+                      <span>Editar Personaje</span>
+                    </button>
+                    <div className="text-right">
+                      <span className="text-xs font-mono font-bold text-cyan-300 block">{selectedCharacter.ageYears} Años</span>
+                      <span className="text-[10px] font-mono text-slate-500 block">{selectedCharacter.ageNemas} Nemas</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1401,6 +2005,17 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Bloque de Anotaciones del Autor */}
+            {selectedCharacter && (
+              <AuthorNotesBlock
+                noteKey={`char_${selectedCharacter.id}`}
+                title={selectedCharacter.name}
+                placeholder={`Anotaciones del autor sobre ${selectedCharacter.name}: desarrollo dramático, secretos, conexiones o evolución en los libros...`}
+                noteValue={loreStore.customNotes[`char_${selectedCharacter.id}`] || ''}
+                onUpdateNote={handleUpdateNote}
+              />
             )}
           </div>
         </div>
@@ -1502,6 +2117,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 💡 <strong className="text-slate-200">Dato Canónico:</strong> Decir la edad en "Años" dentro de las cubiertas medias se considera una herejía nostálgica propia de los Terranáuticos o de la secta Nih'Sol. Todos los censos oficiales computan la existencia en Nemas de 32 días terrestres.
               </div>
             </div>
+
+            {/* Bloque de Anotaciones del Autor */}
+            <AuthorNotesBlock
+              noteKey="cronosistema_notes"
+              title="Cronosistema & Medidas Binarias"
+              placeholder="Ideas y reflexiones del autor sobre las viras, fulas, semas, kromas y cómo influye el tiempo binario en la psique humana..."
+              noteValue={loreStore.customNotes['cronosistema_notes'] || ''}
+              onUpdateNote={handleUpdateNote}
+            />
           </div>
         </div>
       )}
@@ -1523,12 +2147,16 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               </div>
 
               <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
-                {PHILOSOPHICAL_VORTICES.map(v => {
+                {loreStore.vortices.map(v => {
                   const isSelected = selectedVortex?.id === v.id;
+                  const hasVortexNotes = Boolean(loreStore.customNotes[`vortex_${v.id}`]?.trim());
                   return (
                     <div
                       key={v.id}
-                      onClick={() => setSelectedVortex(v)}
+                      onClick={() => {
+                        setSelectedVortexId(v.id);
+                        playWordResonance('Khor');
+                      }}
                       className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                         isSelected
                           ? 'border-cyan-500 bg-cyan-950/40 shadow-[0_0_15px_rgba(34,211,238,0.25)]'
@@ -1541,6 +2169,9 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                             #{v.number}
                           </span>
                           <span className="text-xs font-mono font-bold text-white">{v.transversalName}</span>
+                          {hasVortexNotes && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400" title="Contiene notas del autor" />
+                          )}
                         </div>
                         <span className="text-[10px] text-slate-400 font-sans block">{v.name}</span>
                       </div>
@@ -1553,7 +2184,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
           </div>
 
           {/* Ficha Exegética del Vórtice */}
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-7 space-y-4">
             {selectedVortex && (
               <div className="p-6 rounded-3xl bg-slate-950/80 border border-white/10 space-y-4 shadow-2xl animate-fade-in">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
@@ -1600,6 +2231,17 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   <span className="text-slate-300">{selectedVortex.symbolMeaning}</span>
                 </div>
               </div>
+            )}
+
+            {/* Bloque de Anotaciones del Autor */}
+            {selectedVortex && (
+              <AuthorNotesBlock
+                noteKey={`vortex_${selectedVortex.id}`}
+                title={`Vórtice #${selectedVortex.number}: ${selectedVortex.name}`}
+                placeholder="Anotaciones filosóficas sobre este vórtice, su influencia en las sectas y su simbolismo..."
+                noteValue={loreStore.customNotes[`vortex_${selectedVortex.id}`] || ''}
+                onUpdateNote={handleUpdateNote}
+              />
             )}
           </div>
         </div>
@@ -1679,6 +2321,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
           <div className="p-4 rounded-2xl bg-black/60 border border-rose-500/20 text-xs font-mono text-rose-200 italic">
             «La Estación es un organismo. Si no mudamos la piel muerta, el corazón se detiene. HAVA no es crueldad; es pura fisiología.» — Vireus
           </div>
+
+          {/* Bloque de Anotaciones del Autor */}
+          <AuthorNotesBlock
+            noteKey="hava_notes"
+            title="Dossier HAVA (Obsidiana)"
+            placeholder="Notas del autor sobre la conspiración HAVA, quiénes conocen el plan, cómo se resistirán los personajes del infierno polar..."
+            noteValue={loreStore.customNotes['hava_notes'] || ''}
+            onUpdateNote={handleUpdateNote}
+          />
         </div>
       )}
 
@@ -1719,7 +2370,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {SUBSTANCES_COMPENDIUM.map(sub => (
+              {loreStore.substances.map(sub => (
                 <div key={sub.id} className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-mono font-bold text-white">{sub.name}</h4>
@@ -1736,6 +2387,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               ))}
             </div>
           </div>
+
+          {/* Bloque de Anotaciones del Autor */}
+          <AuthorNotesBlock
+            noteKey="sociedad_notes"
+            title="Castas, Alévoros & Farmacología"
+            placeholder="Nuevas sustancias, efectos psicotrópicos, rituales de los Alévoros y dinámicas sociales..."
+            noteValue={loreStore.customNotes['sociedad_notes'] || ''}
+            onUpdateNote={handleUpdateNote}
+          />
         </div>
       )}
 
@@ -1746,7 +2406,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
         <div className="space-y-6 animate-fade-in">
           {/* Selector de Libro */}
           <div className="grid grid-cols-3 gap-3">
-            {NOVEL_TRILOGY_BREAKDOWN.map((b, bIdx) => (
+            {loreStore.trilogy.map((b, bIdx) => (
               <button
                 key={b.bookNumber}
                 onClick={() => setSelectedBookIndex(bIdx)}
@@ -1766,19 +2426,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
           </div>
 
           {/* Desglose del Libro Seleccionado */}
-          {NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex] && (
+          {loreStore.trilogy[selectedBookIndex] && (
             <div className="p-6 rounded-3xl bg-slate-950/80 border border-white/10 space-y-5 shadow-2xl animate-fade-in">
               <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
                 <div>
                   <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest block font-bold">
-                    {NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex].timelineLabel}
+                    {loreStore.trilogy[selectedBookIndex].timelineLabel}
                   </span>
                   <h3 className="text-2xl font-bold font-rajdhani text-white uppercase tracking-wider mt-0.5">
-                    Libro {NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex].bookNumber}: {NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex].title}
+                    Libro {loreStore.trilogy[selectedBookIndex].bookNumber}: {loreStore.trilogy[selectedBookIndex].title}
                   </h3>
                 </div>
                 <span className="text-xs font-mono text-amber-300 italic">
-                  «{NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex].subtitle}»
+                  «{loreStore.trilogy[selectedBookIndex].subtitle}»
                 </span>
               </div>
 
@@ -1787,7 +2447,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   Tesis Central del Libro:
                 </span>
                 <p className="text-xs text-slate-200 font-sans leading-relaxed">
-                  {NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex].theme}
+                  {loreStore.trilogy[selectedBookIndex].theme}
                 </p>
               </div>
 
@@ -1796,7 +2456,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   Sinopsis Argumental:
                 </span>
                 <p className="text-xs text-slate-300 font-sans leading-relaxed">
-                  {NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex].summary}
+                  {loreStore.trilogy[selectedBookIndex].summary}
                 </p>
               </div>
 
@@ -1806,7 +2466,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   Capítulos Canónicos Destacados:
                 </span>
                 <div className="space-y-2">
-                  {NOVEL_TRILOGY_BREAKDOWN[selectedBookIndex].keyChapters.map(chap => (
+                  {loreStore.trilogy[selectedBookIndex].keyChapters.map(chap => (
                     <div key={chap.number} className="p-3.5 rounded-2xl bg-white/5 border border-white/5 space-y-1 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-cyan-200 font-mono">
@@ -1823,6 +2483,15 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               </div>
             </div>
           )}
+
+          {/* Bloque de Anotaciones del Autor */}
+          <AuthorNotesBlock
+            noteKey={`book_${selectedBookIndex}`}
+            title={`Trilogía: Libro ${selectedBookIndex + 1}`}
+            placeholder="Nuevos capítulos, ideas de trama, puntos de giro o pérdidas para este libro..."
+            noteValue={loreStore.customNotes[`book_${selectedBookIndex}`] || ''}
+            onUpdateNote={handleUpdateNote}
+          />
         </div>
       )}
 
@@ -1924,8 +2593,27 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               <span>Consultar</span>
             </button>
           </div>
+
+          {/* Bloque de Anotaciones del Autor */}
+          <AuthorNotesBlock
+            noteKey="oraculo_notes"
+            title="Oráculo Cuántico Thalios Solaris"
+            placeholder="Secretos que Thalios guarda, fallos en la IA cuántica o ideas para interacciones..."
+            noteValue={loreStore.customNotes['oraculo_notes'] || ''}
+            onUpdateNote={handleUpdateNote}
+          />
         </div>
       )}
+
+        </main>
+      </div>
+
+      {/* MODAL DE EDICIÓN UNIVERSAL DEL LORE */}
+      <LoreEditModal
+        entity={editingEntity}
+        onClose={() => setEditingEntity(null)}
+        onSave={handleSaveEntity}
+      />
     </div>
   );
 };

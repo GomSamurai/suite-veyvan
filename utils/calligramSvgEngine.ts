@@ -16,23 +16,43 @@ import { getBezierPointsWithWeight, getBrushPath, SegmentPressure } from './tael
  * arcos de vínculo elásticos inquebrantables, estilos de cálamo y geometrías sagradas personalizables.
  */
 
-// Retícula Canónica Algante (6 columnas x 4 filas)
-const ALGANTE_GRID: string[][] = [
+// Retícula Canónica Algante (6 columnas x 4 filas) -> Matriz Litúrgica de Alta Jerarquía / Sacerdotes del Émulo
+export const ALGANTE_GRID: string[][] = [
   ['P', 'V', 'U', 'Y', 'M', 'B'],
   ['F', 'R', 'E', 'A', 'D', 'C'],
   ['H', 'N', 'I', 'L', 'Z', 'Q'],
   ['K', 'S', 'O', 'T', 'G', 'J']
 ];
 
-const CELL_SIZE = 20;
+// Retícula Canónica Común (4 columnas x 6 filas) -> Matriz Secular / Pasillos Obreros y Cubiertas Medias
+export const COMUN_GRID: string[][] = [
+  ['B', 'L', 'A', 'V'],
+  ['C', 'N', 'E', 'S'],
+  ['D', 'R', 'I', 'T'],
+  ['F', 'M', 'O', 'Z'],
+  ['G', 'K', 'U', 'H'],
+  ['J', 'P', 'Y', 'Q']
+];
 
-// Mapeo de caracteres a coordenadas locales
-const GRID_MAP = new Map<string, { x: number; y: number }>();
+export const CELL_SIZE = 20;
+
+// Mapeos de caracteres a coordenadas locales
+export const ALGANTE_GRID_MAP = new Map<string, { x: number; y: number }>();
 ALGANTE_GRID.forEach((row, y) => {
   row.forEach((char, x) => {
-    GRID_MAP.set(char.toUpperCase(), { x, y });
+    ALGANTE_GRID_MAP.set(char.toUpperCase(), { x, y });
   });
 });
+
+export const COMUN_GRID_MAP = new Map<string, { x: number; y: number }>();
+COMUN_GRID.forEach((row, y) => {
+  row.forEach((char, x) => {
+    COMUN_GRID_MAP.set(char.toUpperCase(), { x, y });
+  });
+});
+
+// Alias compatible para referencias existentes
+export const GRID_MAP = ALGANTE_GRID_MAP;
 
 export interface PaletteTheme {
   id: CalligramPalette;
@@ -142,17 +162,32 @@ export const CENTER = VIEW_SIZE / 2;
 
 /**
  * Obtiene los puntos de un radical en coordenadas locales de la retícula
+ * Soporta modo Algante (6x4, centro 2.5/1.5) y modo Común (4x6, centro 1.5/2.5)
  */
-export function getRadicalLocalPoints(cleanRoot: string): LocalPoint[] {
+export function getRadicalLocalPoints(
+  cleanRoot: string, 
+  gridMode: 'algante' | 'comun' = 'algante'
+): LocalPoint[] {
   const letters = cleanRoot.toUpperCase().replace(/[^A-Z]/g, '').split('');
   const points: LocalPoint[] = [];
+  const isComun = gridMode === 'comun';
+  const targetMap = isComun ? COMUN_GRID_MAP : ALGANTE_GRID_MAP;
+  const centerX = isComun ? 1.5 : 2.5;
+  const centerY = isComun ? 2.5 : 1.5;
 
-  for (const char of letters) {
-    const coord = GRID_MAP.get(char);
+  for (const rawChar of letters) {
+    let char = rawChar;
+    // Sustituciones fonológicas canónicas para grafías no nativas
+    if (!targetMap.has(char)) {
+      if (char === 'W') char = 'V';
+      else if (char === 'X') char = 'S';
+    }
+
+    const coord = targetMap.get(char);
     if (coord) {
       points.push({
-        x: (coord.x - 2.5) * CELL_SIZE,
-        y: (coord.y - 1.5) * CELL_SIZE,
+        x: (coord.x - centerX) * CELL_SIZE,
+        y: (coord.y - centerY) * CELL_SIZE,
         char
       });
     }
@@ -880,7 +915,8 @@ export function generateCalligramSvg(
     const rot = base.baseRot + (custom?.rotation || 0);
     const s = (config.sacredScale || 1.0) * (custom?.scale || 1.0);
 
-    const localPts = getRadicalLocalPoints(unit.cleanRoot);
+    const gridMode = config.gridMode || 'algante';
+    const localPts = getRadicalLocalPoints(unit.cleanRoot, gridMode);
     const worldPts = localPts.map(p => toWorld(p.x, p.y, cx, cy, rot, s));
 
     return {
@@ -979,12 +1015,18 @@ export function generateCalligramSvg(
 
   // 6. Retícula de Nexos Fónicos si está activada
   if (config.showNexuses) {
+    const isComun = (config.gridMode || 'algante') === 'comun';
+    const gridCols = isComun ? 4 : 6;
+    const gridRows = isComun ? 6 : 4;
+    const centerX = isComun ? 1.5 : 2.5;
+    const centerY = isComun ? 2.5 : 1.5;
+
     svgContent += `<g id="nexos-fonicos" opacity="0.35">`;
     placements.forEach(p => {
-      for (let gy = 0; gy < 4; gy++) {
-        for (let gx = 0; gx < 6; gx++) {
-          const lx = (gx - 2.5) * CELL_SIZE;
-          const ly = (gy - 1.5) * CELL_SIZE;
+      for (let gy = 0; gy < gridRows; gy++) {
+        for (let gx = 0; gx < gridCols; gx++) {
+          const lx = (gx - centerX) * CELL_SIZE;
+          const ly = (gy - centerY) * CELL_SIZE;
           const wp = toWorld(lx, ly, p.cx, p.cy, p.rotation, p.scale);
           svgContent += `<circle cx="${wp.x.toFixed(1)}" cy="${wp.y.toFixed(1)}" r="1.5" fill="${palette.primary}" />`;
         }
@@ -1397,7 +1439,8 @@ export function computeCalligramBounds(expression: string, config: CalligramConf
     const rot = base.baseRot + (custom?.rotation || 0);
     const s = (config.sacredScale || 1.0) * (custom?.scale || 1.0);
 
-    const localPts = getRadicalLocalPoints(unit.cleanRoot);
+    const gridMode = config.gridMode || 'algante';
+    const localPts = getRadicalLocalPoints(unit.cleanRoot, gridMode);
     const worldPts = localPts.map(p => toWorld(p.x, p.y, cx, cy, rot, s));
 
     worldPts.forEach(pt => {

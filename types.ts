@@ -27,6 +27,7 @@ export interface UnitCustomTransform {
 export interface CalligramConfig {
   geometry: CalligramGeometry;
   palette: CalligramPalette;
+  gridMode?: 'algante' | 'comun'; // Matriz canónica: Algante (6x4, litúrgica/vertical) o Común (4x6, secular/horizontal)
   // Disposición & Geometría Global
   globalRadius: number; // Radio de dispersión o separación general (80 a 400)
   stelaRotation: number; // Orientación angular global (-180 a 180)

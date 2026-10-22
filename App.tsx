@@ -59,6 +59,32 @@ const App: React.FC = () => {
     traceInTaelim
   } = useLexicon();
 
+  // Gestión de Modo Solar (Claro) / Modo Vacío (Oscuro)
+  const [theme, setTheme] = React.useState<'dark' | 'light'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('suite_veyvan_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    }
+    return 'dark';
+  });
+
+  React.useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+      localStorage.setItem('suite_veyvan_theme', 'light');
+    } else {
+      root.classList.add('dark');
+      root.classList.remove('light');
+      localStorage.setItem('suite_veyvan_theme', 'dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-transparent flex flex-col items-center justify-center text-cyan-400 gap-4">
@@ -69,21 +95,24 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-300 font-sans selection:bg-cyan-500/30 selection:text-cyan-100 overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-transparent text-slate-300 dark:text-slate-300 light:text-slate-800 font-sans selection:bg-cyan-500/30 selection:text-cyan-100 overflow-hidden flex flex-col">
       <div className="animate-fade-in">
         <Navigation 
           activeTab={activeTab} 
           setActiveTab={setActiveTab} 
           onExport={handleExport}
           onImport={handleImport}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       </div>
       
       {/* 
         Main content wrapper with overflow-auto. 
+        Fluid responsive width utilizing screen space gracefully up to 1920px.
         Using display:none preserves component state when switching tabs.
       */}
-      <main className="flex-1 overflow-y-auto container mx-auto py-8 px-4 relative custom-scrollbar z-10">
+      <main className="flex-1 overflow-y-auto w-full max-w-[99vw] 2xl:max-w-[1920px] mx-auto py-4 sm:py-6 px-2 sm:px-6 relative custom-scrollbar z-10">
         <div className={activeTab === 'glossary' ? 'block animate-fade-in' : 'hidden'}>
           <GlossaryList terms={terms} onUpdateTerm={updateTerm} />
         </div>

@@ -145,3 +145,165 @@
   50% { box-shadow: inset 0 0 15px rgba(34, 211, 238, 0.2); }
   100% { box-shadow: inset 0 0 0 rgba(34, 211, 238, 0); }
 }
+
+/* ========================================================================= */
+/* MODO SOLAR / LUZ DEL ÉMULO (LIGHT MODE THEME)                             */
+/* ========================================================================= */
+html.light body {
+  background-color: #f8fafc; /* Luminous soft alabaster / slate-50 */
+  color: #0f172a; /* Slate-900 high contrast */
+  background-image: 
+    radial-gradient(circle at 15% 10%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(245, 158, 11, 0.06) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E"),
+    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+}
+
+/* Superficies principales y paneles */
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/85,
+html.light .bg-slate-950\/90,
+html.light .bg-slate-950 {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: rgba(203, 213, 225, 0.9) !important;
+  box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08) !important;
+}
+
+html.light .bg-black\/90,
+html.light .bg-black\/85,
+html.light .bg-black\/80,
+html.light .bg-black\/70,
+html.light .bg-black\/60 {
+  background-color: rgba(248, 250, 252, 0.96) !important;
+  border-color: rgba(203, 213, 225, 0.85) !important;
+}
+
+html.light .bg-black\/40,
+html.light .bg-black\/50,
+html.light .bg-white\/5 {
+  background-color: rgba(241, 245, 249, 0.92) !important;
+  border-color: rgba(226, 232, 240, 0.95) !important;
+}
+
+html.light .bg-white\/10 {
+  background-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+/* Tipografía de Alto Contraste en Modo Claro */
+html.light .text-white {
+  color: #0f172a !important; /* Slate-900 */
+}
+
+html.light .text-slate-100,
+html.light .text-slate-200 {
+  color: #1e293b !important; /* Slate-800 */
+}
+
+html.light .text-slate-300 {
+  color: #334155 !important; /* Slate-700 */
+}
+
+html.light .text-slate-400 {
+  color: #475569 !important; /* Slate-600 */
+}
+
+html.light .text-slate-500 {
+  color: #64748b !important; /* Slate-500 */
+}
+
+html.light .border-white\/10,
+html.light .border-white\/5 {
+  border-color: rgba(203, 213, 225, 0.85) !important;
+}
+
+/* Acentos Semánticos Sintonizados para Fondo Claro */
+/* Cyan / Sky (Sistemas y Léxico) */
+html.light .bg-cyan-950\/40,
+html.light .bg-cyan-950\/60,
+html.light .bg-cyan-950\/80,
+html.light .bg-cyan-950 {
+  background-color: rgba(224, 242, 254, 0.88) !important;
+  border-color: rgba(56, 189, 248, 0.75) !important;
+}
+
+html.light .text-cyan-200,
+html.light .text-cyan-300 {
+  color: #0284c7 !important; /* Sky-600 */
+}
+
+html.light .text-cyan-400 {
+  color: #0369a1 !important; /* Sky-700 */
+}
+
+/* Amber / Gold (Algante, Liturgia y Sagrado) */
+html.light .bg-amber-950\/30,
+html.light .bg-amber-950\/40,
+html.light .bg-amber-950\/60,
+html.light .bg-amber-950\/80 {
+  background-color: rgba(254, 243, 199, 0.88) !important;
+  border-color: rgba(245, 158, 11, 0.75) !important;
+}
+
+html.light .text-amber-200,
+html.light .text-amber-300 {
+  color: #b45309 !important; /* Amber-700 */
+}
+
+html.light .text-amber-400 {
+  color: #92400e !important; /* Amber-800 */
+}
+
+/* Violet / Purple (Códice y Morfología) */
+html.light .bg-purple-950\/40,
+html.light .bg-purple-950\/60 {
+  background-color: rgba(243, 232, 255, 0.88) !important;
+  border-color: rgba(168, 85, 247, 0.75) !important;
+}
+
+html.light .text-purple-200,
+html.light .text-purple-300 {
+  color: #7c3aed !important; /* Violet-600 */
+}
+
+/* Emerald / Green (Oráculo, Resonancia y Vitalidad) */
+html.light .bg-emerald-950\/20,
+html.light .bg-emerald-950\/40,
+html.light .bg-emerald-950\/60 {
+  background-color: rgba(209, 250, 229, 0.88) !important;
+  border-color: rgba(16, 185, 129, 0.75) !important;
+}
+
+html.light .text-emerald-200,
+html.light .text-emerald-300 {
+  color: #047857 !important; /* Emerald-700 */
+}
+
+html.light .text-emerald-400 {
+  color: #065f46 !important; /* Emerald-800 */
+}
+
+/* Rose / Red (Alertas HAVA y Modos Críticos) */
+html.light .bg-rose-950\/40,
+html.light .bg-rose-950\/60 {
+  background-color: rgba(255, 228, 230, 0.88) !important;
+  border-color: rgba(244, 63, 94, 0.75) !important;
+}
+
+html.light .text-rose-200,
+html.light .text-rose-300 {
+  color: #be123c !important; /* Rose-700 */
+}
+
+/* Scrollbar en Modo Claro */
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #0ea5e9;
+}

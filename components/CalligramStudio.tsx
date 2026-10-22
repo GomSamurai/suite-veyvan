@@ -194,6 +194,7 @@ export type CalligramTab = 'vinculos' | 'morfologia' | 'trazo' | 'fisica' | 'mat
 const DEFAULT_CONFIG: CalligramConfig = {
   geometry: 'mandala',
   palette: 'uniae',
+  gridMode: 'algante',
   matrixGap: 130,
   intertwineLevel: 35,
   strokeWidth: 3.5,
@@ -441,6 +442,17 @@ const CalligramStudio: React.FC = () => {
   // Manejador de Selección por Marco (Marquee) y Arrastre de Símbolos sobre el Lienzo
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement | SVGElement | null;
+
+    // Si el clic es sobre un botón, input, control de interfaz o barra de herramientas, permitir su funcionamiento sin interferir
+    if (
+      target?.closest('button') || 
+      target?.closest('[data-canvas-controls]') || 
+      target?.closest('input') || 
+      target?.closest('select')
+    ) {
+      return;
+    }
+
     const radicalEl = target?.closest?.('[data-radical-index]');
     const rect = svgContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -988,7 +1000,7 @@ const CalligramStudio: React.FC = () => {
   const currentPalette = PALETTES[config.palette] || PALETTES.uniae;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 select-none">
+    <div className="space-y-6 w-full max-w-[99vw] 2xl:max-w-[1920px] mx-auto pb-12 select-none">
       {/* Encabezado Ceremonial */}
       <div className="relative border border-white/10 rounded-3xl p-6 md:p-8 bg-slate-950/80 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
@@ -1156,17 +1168,29 @@ const CalligramStudio: React.FC = () => {
               </div>
             )}
 
-            {/* Lista de Fórmulas */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {canonicalFormulas.map((sig) => {
+            {/* Lista de Fórmulas Canónicas y de Usuario con Colores Semánticos */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {canonicalFormulas.map((sig, sIdx) => {
                 const isActive = expression === sig.text;
+                const colorSchemes = [
+                  'border-amber-500/60 text-amber-200 bg-amber-950/50 shadow-[0_0_12px_rgba(245,158,11,0.3)]',
+                  'border-rose-500/60 text-rose-200 bg-rose-950/50 shadow-[0_0_12px_rgba(244,63,94,0.3)]',
+                  'border-cyan-500/60 text-cyan-200 bg-cyan-950/50 shadow-[0_0_12px_rgba(34,211,238,0.3)]',
+                  'border-emerald-500/60 text-emerald-200 bg-emerald-950/50 shadow-[0_0_12px_rgba(16,185,129,0.3)]',
+                  'border-sky-500/60 text-sky-200 bg-sky-950/50 shadow-[0_0_12px_rgba(14,165,233,0.3)]',
+                  'border-purple-500/60 text-purple-200 bg-purple-950/50 shadow-[0_0_12px_rgba(168,85,247,0.3)]',
+                  'border-orange-500/60 text-orange-200 bg-orange-950/50 shadow-[0_0_12px_rgba(249,115,22,0.3)]',
+                  'border-teal-500/60 text-teal-200 bg-teal-950/50 shadow-[0_0_12px_rgba(20,184,166,0.3)]'
+                ];
+                const activeScheme = colorSchemes[sIdx % colorSchemes.length];
+
                 return (
                   <div
                     key={sig.id}
-                    className={`group text-[10px] font-mono px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 ${
+                    className={`group text-xs font-mono px-3 py-1.5 rounded-xl border transition-all flex items-center gap-2 ${
                       isActive 
-                        ? 'border-cyan-500/70 bg-cyan-950/80 text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.25)]' 
-                        : 'border-white/5 bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                        ? `${activeScheme} font-bold` 
+                        : 'border-white/10 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
                     <button
@@ -1175,17 +1199,18 @@ const CalligramStudio: React.FC = () => {
                         setTargetCalligramExpression(sig.text);
                         setSelectedRadicalIndices([]);
                       }}
-                      className="cursor-pointer text-left"
+                      className="cursor-pointer text-left flex items-center gap-1.5"
                       title={sig.text}
                     >
-                      {sig.label}
+                      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-current' : 'bg-slate-500'}`} />
+                      <span>{sig.label}</span>
                     </button>
                     <button
                       onClick={(e) => handleDeleteFormula(sig.id, e)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 transition-all p-0.5 rounded cursor-pointer"
-                      title="Eliminar fórmula"
+                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 transition-all p-0.5 rounded cursor-pointer"
+                      title="Eliminar fórmula de la bóveda"
                     >
-                      <X size={10} />
+                      <X size={12} />
                     </button>
                   </div>
                 );
@@ -1193,10 +1218,10 @@ const CalligramStudio: React.FC = () => {
             </div>
           </div>
 
-          {/* Barra Rápida de Estilos y Presets Populares */}
+          {/* Barra Rápida de Estilos y Presets con Acentos Diferenciados */}
           <div className="pt-2 border-t border-white/5 flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-            <span className="text-[9px] font-mono text-slate-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
-              <Bookmark size={11} className="text-cyan-400" />
+            <span className="text-xs font-mono text-slate-300 uppercase tracking-widest shrink-0 flex items-center gap-1.5 font-bold">
+              <Bookmark size={13} className="text-cyan-400" />
               <span>Estilos Rápidos:</span>
             </span>
             {allPresets.slice(0, 7).map(p => {
@@ -1205,10 +1230,10 @@ const CalligramStudio: React.FC = () => {
                 <button
                   key={p.id}
                   onClick={() => handleApplyPreset(p)}
-                  className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  className={`text-xs font-mono px-3 py-1.5 rounded-xl border transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
                     isSelected
-                      ? 'border-cyan-500 bg-cyan-950/80 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.35)]'
-                      : 'border-white/5 bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                      ? 'border-cyan-400 bg-cyan-950/80 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.35)] font-bold'
+                      : 'border-white/10 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
                   }`}
                   title={p.description}
                 >
@@ -1219,7 +1244,7 @@ const CalligramStudio: React.FC = () => {
             })}
             <button
               onClick={() => setActiveTabPanel('estilos')}
-              className="text-[10px] font-mono px-2.5 py-1 rounded-lg border border-cyan-500/30 text-cyan-400 bg-cyan-950/40 hover:bg-cyan-900/40 transition-all shrink-0 cursor-pointer flex items-center gap-1"
+              className="text-xs font-mono px-3 py-1.5 rounded-xl border border-cyan-500/40 text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/50 transition-all shrink-0 cursor-pointer flex items-center gap-1.5 font-bold"
             >
               <span>+ Bóveda Completa ({allPresets.length})</span>
             </button>
@@ -1345,42 +1370,113 @@ const CalligramStudio: React.FC = () => {
             )}
 
             {/* Barra de Herramientas Superior del Lienzo */}
-            <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between gap-2 pointer-events-none">
-              <div className="flex items-center gap-2 pointer-events-auto flex-wrap">
-                <span className="px-2.5 py-1 rounded-lg bg-black/80 border border-white/10 text-[9px] font-mono text-slate-300 uppercase tracking-widest flex items-center gap-1.5 backdrop-blur-md">
-                  <Compass size={11} className="text-cyan-400" />
-                  <span>{GEOMETRY_INFO[config.geometry]?.label || config.geometry}</span>
+            <div 
+              data-canvas-controls="true"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between gap-2 pointer-events-none"
+            >
+              <div 
+                data-canvas-controls="true"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 pointer-events-auto flex-wrap"
+              >
+                <span className="px-3 py-1.5 rounded-xl bg-black/85 border border-white/10 text-xs font-mono text-slate-200 uppercase tracking-widest flex items-center gap-2 backdrop-blur-md shadow-lg select-none">
+                  <Compass size={13} className="text-cyan-400" />
+                  <span className="font-bold">{GEOMETRY_INFO[config.geometry]?.label || config.geometry}</span>
                 </span>
+
+                {/* Selector Rápido de Matriz: Algante (6x4) vs Común (4x6) */}
+                <div 
+                  data-canvas-controls="true"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="flex items-center rounded-xl bg-black/85 border border-white/15 p-0.5 backdrop-blur-md shadow-lg"
+                >
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfig(prev => ({ ...prev, gridMode: 'algante' }));
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                      (config.gridMode || 'algante') === 'algante'
+                        ? 'bg-amber-500/25 border border-amber-500/70 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
+                        : 'text-slate-400 hover:text-amber-200'
+                    }`}
+                    title="Matriz Sagrada Algante (6×4) - Descenso vertical ceremonial del Émulo"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.9)]"></span>
+                    <span>Algante (6×4)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfig(prev => ({ ...prev, gridMode: 'comun' }));
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                      config.gridMode === 'comun'
+                        ? 'bg-sky-500/25 border border-sky-500/70 text-sky-300 shadow-[0_0_12px_rgba(14,165,233,0.35)]'
+                        : 'text-slate-400 hover:text-sky-200'
+                    }`}
+                    title="Matriz Secular Común (4×6) - Secuencia horizontal funcional de pasillos obreros"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(14,165,233,0.9)]"></span>
+                    <span>Común (4×6)</span>
+                  </button>
+                </div>
 
                 {/* Botón de Play / Pausa para la Animación de Respiración */}
                 <button
-                  onClick={() => setConfig(prev => ({ ...prev, breathingAnimation: !prev.breathingAnimation }))}
-                  className={`px-2.5 py-1 rounded-lg border text-[9px] font-mono uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-md transition-all cursor-pointer ${
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfig(prev => ({ ...prev, breathingAnimation: !prev.breathingAnimation }));
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-md transition-all cursor-pointer shadow-lg ${
                     config.breathingAnimation 
-                      ? 'bg-cyan-950/80 border-cyan-500/80 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.35)] animate-pulse' 
-                      : 'bg-black/80 border-white/10 text-slate-400 hover:text-slate-200'
+                      ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.35)] animate-pulse font-bold' 
+                      : 'bg-black/85 border-white/10 text-slate-300 hover:text-white'
                   }`}
                   title={config.breathingAnimation ? "Pausar pulso para diseñar con tranquilidad" : "Activar pulso de respiración sagrada"}
                 >
-                  {config.breathingAnimation ? <Pause size={10} className="text-cyan-400" /> : <Play size={10} className="text-slate-400" />}
+                  {config.breathingAnimation ? <Pause size={12} className="text-emerald-400" /> : <Play size={12} className="text-slate-300" />}
                   <span>{config.breathingAnimation ? 'Aliento Activo' : 'Aliento Pausado'}</span>
                 </button>
 
                 {/* Botón de Auto-Ajustar al Lienzo */}
                 <button
-                  onClick={handleFitToBounds}
-                  className="px-2.5 py-1 rounded-lg bg-black/80 hover:bg-cyan-950/80 border border-cyan-500/40 text-[9px] font-mono text-cyan-300 uppercase tracking-wider flex items-center gap-1 backdrop-blur-md transition-all cursor-pointer shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFitToBounds();
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-black/85 hover:bg-cyan-950/80 border border-cyan-500/50 text-xs font-mono text-cyan-200 uppercase tracking-wider flex items-center gap-1.5 backdrop-blur-md transition-all cursor-pointer shadow-[0_0_12px_rgba(34,211,238,0.25)] font-bold"
                   title="Calcula los límites de la composición y la escala para llenar el lienzo sin dejar espacios vacíos"
                 >
-                  <Scale size={11} className="text-cyan-400" />
+                  <Scale size={13} className="text-cyan-400" />
                   <span>Ajustar al Lienzo</span>
                 </button>
               </div>
 
               {/* Controles de Selección Activa sobre el Lienzo */}
-              <div className="flex items-center gap-2 pointer-events-auto flex-wrap justify-end">
+              <div 
+                data-canvas-controls="true"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 pointer-events-auto flex-wrap justify-end"
+              >
                 {selectedRadicalIndices.length > 0 ? (
-                  <div className="flex items-center gap-1.5 bg-black/85 border border-cyan-500/50 p-1 rounded-xl backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+                  <div 
+                    data-canvas-controls="true"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1.5 bg-black/85 border border-cyan-500/50 p-1 rounded-xl backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.3)]"
+                  >
                     <span className="px-2 py-0.5 text-[9px] font-mono text-cyan-300 font-bold uppercase tracking-wider">
                       {selectedRadicalIndices.length === 1 
                         ? `Radical #${selectedRadicalIndices[0] + 1}` 
@@ -1390,14 +1486,24 @@ const CalligramStudio: React.FC = () => {
                     {/* Escala Rápida del Grupo */}
                     <div className="flex items-center gap-0.5 border-l border-white/10 pl-1.5">
                       <button
-                        onClick={() => updateGroupScale(0.9)}
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateGroupScale(0.9);
+                        }}
                         className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[9px] font-mono text-slate-300 transition-all cursor-pointer"
                         title="Reducir escala de los seleccionados un 10%"
                       >
                         -10%
                       </button>
                       <button
-                        onClick={() => updateGroupScale(1.1)}
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateGroupScale(1.1);
+                        }}
                         className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[9px] font-mono text-cyan-300 transition-all cursor-pointer font-bold"
                         title="Aumentar escala de los seleccionados un 10%"
                       >
@@ -1408,14 +1514,24 @@ const CalligramStudio: React.FC = () => {
                     {/* Giro Rápido del Grupo */}
                     <div className="flex items-center gap-0.5 border-l border-white/10 pl-1.5">
                       <button
-                        onClick={() => updateGroupRotation(-15)}
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateGroupRotation(-15);
+                        }}
                         className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 transition-all cursor-pointer"
                         title="Girar selección -15°"
                       >
                         <RotateCw size={10} className="-scale-x-100" />
                       </button>
                       <button
-                        onClick={() => updateGroupRotation(15)}
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateGroupRotation(15);
+                        }}
                         className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 transition-all cursor-pointer"
                         title="Girar selección +15°"
                       >
@@ -1425,7 +1541,12 @@ const CalligramStudio: React.FC = () => {
 
                     {/* Deseleccionar */}
                     <button
-                      onClick={handleDeselectAll}
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeselectAll();
+                      }}
                       className="px-2 py-0.5 rounded bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-[9px] font-mono text-cyan-200 transition-all cursor-pointer"
                       title="Deseleccionar todos"
                     >
@@ -1434,7 +1555,12 @@ const CalligramStudio: React.FC = () => {
                   </div>
                 ) : (
                   <button
-                    onClick={handleSelectAllRadicals}
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectAllRadicals();
+                    }}
                     className="px-2.5 py-1 rounded-lg bg-black/80 hover:bg-white/10 border border-white/10 text-[9px] font-mono text-slate-400 hover:text-slate-200 uppercase tracking-wider flex items-center gap-1 backdrop-blur-md transition-all cursor-pointer"
                     title="Seleccionar todos los radicales simultáneamente"
                   >
@@ -1444,7 +1570,7 @@ const CalligramStudio: React.FC = () => {
                 )}
 
                 <span 
-                  className="px-2.5 py-1 rounded-lg text-[9px] font-mono uppercase tracking-widest font-bold border backdrop-blur-md"
+                  className="px-2.5 py-1 rounded-lg text-[9px] font-mono uppercase tracking-widest font-bold border backdrop-blur-md select-none"
                   style={{
                     color: currentPalette.primary,
                     borderColor: currentPalette.borderStroke,
@@ -1521,26 +1647,55 @@ const CalligramStudio: React.FC = () => {
           <div className="bg-slate-950/90 border border-white/10 rounded-3xl p-2.5 shadow-2xl space-y-2">
             <div className="grid grid-cols-4 gap-2">
               {[
-                { id: 'vinculos' as CalligramTab, label: 'VÍNCULOS', icon: <Route size={18} />, badge: parsedExpr.arcs && parsedExpr.arcs.length > 0 ? `${parsedExpr.arcs.length}` : '0' },
-                { id: 'morfologia' as CalligramTab, label: 'MORFOLOGÍA', icon: <Layers size={18} /> },
-                { id: 'trazo' as CalligramTab, label: 'TRAZO', icon: <PenTool size={18} /> },
-                { id: 'fisica' as CalligramTab, label: 'FÍSICA & FX', icon: <Droplets size={18} /> }
+                { 
+                  id: 'vinculos' as CalligramTab, 
+                  label: 'VÍNCULOS', 
+                  icon: <Route size={18} />, 
+                  badge: parsedExpr.arcs && parsedExpr.arcs.length > 0 ? `${parsedExpr.arcs.length}` : '0',
+                  activeStyle: 'bg-cyan-950/70 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(34,211,238,0.35)] ring-1 ring-cyan-400/50',
+                  iconActive: 'text-cyan-300',
+                  iconInactive: 'text-cyan-400/60'
+                },
+                { 
+                  id: 'morfologia' as CalligramTab, 
+                  label: 'MORFOLOGÍA', 
+                  icon: <Layers size={18} />,
+                  activeStyle: 'bg-purple-950/70 border-purple-400 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.35)] ring-1 ring-purple-400/50',
+                  iconActive: 'text-purple-300',
+                  iconInactive: 'text-purple-400/60'
+                },
+                { 
+                  id: 'trazo' as CalligramTab, 
+                  label: 'TRAZO', 
+                  icon: <PenTool size={18} />,
+                  activeStyle: 'bg-sky-950/70 border-sky-400 text-sky-200 shadow-[0_0_15px_rgba(14,165,233,0.35)] ring-1 ring-sky-400/50',
+                  iconActive: 'text-sky-300',
+                  iconInactive: 'text-sky-400/60'
+                },
+                { 
+                  id: 'fisica' as CalligramTab, 
+                  label: 'FÍSICA & FX', 
+                  icon: <Droplets size={18} />,
+                  activeStyle: 'bg-emerald-950/70 border-emerald-400 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.35)] ring-1 ring-emerald-400/50',
+                  iconActive: 'text-emerald-300',
+                  iconInactive: 'text-emerald-400/60'
+                }
               ].map(cat => (
                 <button
                   key={cat.id}
                   onClick={() => setActiveTabPanel(cat.id)}
-                  className={`py-3 px-1.5 rounded-2xl text-[9px] font-rajdhani uppercase tracking-[0.15em] font-bold transition-all flex flex-col items-center justify-center gap-1.5 border relative cursor-pointer ${
+                  className={`py-3 px-1.5 rounded-2xl text-xs font-rajdhani uppercase tracking-[0.12em] font-bold transition-all flex flex-col items-center justify-center gap-1.5 border relative cursor-pointer ${
                     activeTabPanel === cat.id
-                      ? 'bg-cyan-950/60 border-cyan-500 text-cyan-200 shadow-[0_0_15px_rgba(34,211,238,0.3)] ring-1 ring-cyan-500/40'
+                      ? cat.activeStyle
                       : 'bg-black/40 text-slate-400 border-white/5 hover:text-white hover:border-white/15 hover:bg-white/5'
                   }`}
                 >
-                  <div className={activeTabPanel === cat.id ? 'text-cyan-300' : 'text-slate-400'}>
+                  <div className={activeTabPanel === cat.id ? cat.iconActive : cat.iconInactive}>
                     {cat.icon}
                   </div>
                   <span className="truncate">{cat.label}</span>
                   {cat.badge && (
-                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.2 rounded-full text-[8px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
                       {cat.badge}
                     </span>
                   )}
@@ -1550,20 +1705,41 @@ const CalligramStudio: React.FC = () => {
 
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'matriz' as CalligramTab, label: 'MATRIZ', icon: <Grid3X3 size={18} /> },
-                { id: 'color' as CalligramTab, label: 'COLOR', icon: <Palette size={18} /> },
-                { id: 'estilos' as CalligramTab, label: 'ESTILOS', icon: <Wand2 size={18} /> }
+                { 
+                  id: 'matriz' as CalligramTab, 
+                  label: 'MATRIZ', 
+                  icon: <Grid3X3 size={18} />,
+                  activeStyle: 'bg-amber-950/70 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.35)] ring-1 ring-amber-400/50',
+                  iconActive: 'text-amber-300',
+                  iconInactive: 'text-amber-400/60'
+                },
+                { 
+                  id: 'color' as CalligramTab, 
+                  label: 'COLOR', 
+                  icon: <Palette size={18} />,
+                  activeStyle: 'bg-fuchsia-950/70 border-fuchsia-400 text-fuchsia-200 shadow-[0_0_15px_rgba(217,70,239,0.35)] ring-1 ring-fuchsia-400/50',
+                  iconActive: 'text-fuchsia-300',
+                  iconInactive: 'text-fuchsia-400/60'
+                },
+                { 
+                  id: 'estilos' as CalligramTab, 
+                  label: 'ESTILOS', 
+                  icon: <Wand2 size={18} />,
+                  activeStyle: 'bg-rose-950/70 border-rose-400 text-rose-200 shadow-[0_0_15px_rgba(244,63,94,0.35)] ring-1 ring-rose-400/50',
+                  iconActive: 'text-rose-300',
+                  iconInactive: 'text-rose-400/60'
+                }
               ].map(cat => (
                 <button
                   key={cat.id}
                   onClick={() => setActiveTabPanel(cat.id)}
-                  className={`py-2.5 px-2 rounded-2xl text-[9px] font-rajdhani uppercase tracking-[0.15em] font-bold transition-all flex flex-col items-center justify-center gap-1.5 border cursor-pointer ${
+                  className={`py-2.5 px-2 rounded-2xl text-xs font-rajdhani uppercase tracking-[0.12em] font-bold transition-all flex flex-col items-center justify-center gap-1.5 border cursor-pointer ${
                     activeTabPanel === cat.id
-                      ? 'bg-cyan-950/60 border-cyan-500 text-cyan-200 shadow-[0_0_15px_rgba(34,211,238,0.3)] ring-1 ring-cyan-500/40'
+                      ? cat.activeStyle
                       : 'bg-black/40 text-slate-400 border-white/5 hover:text-white hover:border-white/15 hover:bg-white/5'
                   }`}
                 >
-                  <div className={activeTabPanel === cat.id ? 'text-cyan-300' : 'text-slate-400'}>
+                  <div className={activeTabPanel === cat.id ? cat.iconActive : cat.iconInactive}>
                     {cat.icon}
                   </div>
                   <span className="truncate">{cat.label}</span>
@@ -2312,11 +2488,89 @@ const CalligramStudio: React.FC = () => {
             {/* PESTAÑA 5: MATRIZ (GEOMETRÍA SAGRADA & MANIPULACIÓN LIBRE)                 */}
             {/* ========================================================================= */}
             {activeTabPanel === 'matriz' && (
-              <div className="space-y-4 animate-fade-in">
+              <div className="space-y-5 animate-fade-in">
+                {/* 1. SELECCIÓN DE MATRIZ CANÓNICA: ALGANTE (6x4) vs COMÚN (4x6) */}
+                <div className="p-4 rounded-3xl bg-black/60 border border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.12)] space-y-3">
+                  <div className="flex items-center justify-between border-b border-amber-500/20 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={16} className="text-amber-400" />
+                      <span className="text-xs font-bold uppercase tracking-[0.2em] font-rajdhani text-amber-300">
+                        Sociolecto de Matriz (Escritura Tael'im)
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider bg-amber-500/15 border border-amber-500/35 text-amber-300 font-bold">
+                      {(config.gridMode || 'algante') === 'algante' ? '6 columnas × 4 filas (Litúrgico)' : '4 columnas × 6 filas (Secular)'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Tarjeta Algante */}
+                    <button
+                      onClick={() => setConfig(prev => ({ ...prev, gridMode: 'algante' }))}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-2 relative overflow-hidden ${
+                        (config.gridMode || 'algante') === 'algante'
+                          ? 'border-amber-500 bg-gradient-to-br from-amber-950/60 via-slate-950/90 to-black text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.25)] ring-1 ring-amber-500/50'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.9)]"></span>
+                          <span className="text-xs font-mono font-bold text-amber-300">
+                            Algante (6×4)
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold uppercase">
+                          Litúrgico
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 font-sans leading-relaxed">
+                        Matriz sacerdotal de alta jerarquía. Disposición en descenso vertical sagrado con 6 columnas y 4 filas (24 nodos fónicos). Utilizada en santuarios y el Émulo.
+                      </p>
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-amber-400/90 pt-1.5 border-t border-amber-500/20">
+                        <span>• 6 cols × 4 filas</span>
+                        <span>• Descenso Vertical</span>
+                        <span>• 24 Nodos</span>
+                      </div>
+                    </button>
+
+                    {/* Tarjeta Común */}
+                    <button
+                      onClick={() => setConfig(prev => ({ ...prev, gridMode: 'comun' }))}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col gap-2 relative overflow-hidden ${
+                        config.gridMode === 'comun'
+                          ? 'border-sky-500 bg-gradient-to-br from-sky-950/60 via-slate-950/90 to-black text-sky-200 shadow-[0_0_20px_rgba(14,165,233,0.25)] ring-1 ring-sky-500/50'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.9)]"></span>
+                          <span className="text-xs font-mono font-bold text-sky-300">
+                            Común (4×6)
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold uppercase">
+                          Secular
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 font-sans leading-relaxed">
+                        Matriz funcional de cubiertas obreras y pasillos. Secuencia horizontal práctica de rápida lectura con 4 columnas y 6 filas (24 nodos fónicos).
+                      </p>
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-sky-400/90 pt-1.5 border-t border-sky-500/20">
+                        <span>• 4 cols × 6 filas</span>
+                        <span>• Secuencia Horizontal</span>
+                        <span>• 24 Nodos</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. ARQUETIPOS DE GEOMETRÍA SAGRADA */}
                 <div className="flex items-center justify-between text-cyan-400 border-b border-white/5 pb-2">
                   <div className="flex items-center gap-2">
-                    <Grid3X3 size={16} />
-                    <span className="text-xs font-bold uppercase tracking-[0.2em] font-rajdhani text-cyan-300">Arquetipo de Matriz Sagrada</span>
+                    <Compass size={16} />
+                    <span className="text-xs font-bold uppercase tracking-[0.2em] font-rajdhani text-cyan-300">Arquetipo de Geometría Sagrada</span>
                   </div>
                 </div>
 
