@@ -43,7 +43,9 @@ import {
   PanelLeftClose,
   PanelLeft,
   CheckCircle2,
-  Plus
+  Plus,
+  Pin,
+  ExternalLink
 } from 'lucide-react';
 import { 
   STATION_GLOBAL_METRICS, 
@@ -75,11 +77,23 @@ import {
   saveLoreStore, 
   resetLoreStoreToCanonical, 
   exportLoreToJson, 
-  importLoreFromJson 
+  importLoreFromJson,
+  AuthorNote
 } from '../utils/loreStorage';
 import LoreEditModal from './LoreEditModal';
+import AuthorNotesEcosystem from './AuthorNotesEcosystem';
 import { playWordResonance } from '../utils/taelimAudio';
 import { getAiClient, getGeminiModel } from '../services/geminiService';
+
+declare global {
+  interface Window {
+    suiteAPI?: {
+      isElectron: boolean;
+      launchHorocrono: (options?: { view?: 'main' | 'minihud' }) => Promise<{ success: boolean; mode?: string; error?: string }>;
+      openExternal: (url: string) => void;
+    };
+  }
+}
 
 export type LoreSubTab = 
   | 'lideres' 
@@ -121,7 +135,7 @@ const SIDEBAR_ITEMS: SidebarNavItem[] = [
   { id: 'novela', label: 'La Novela (3 Libros)', shortLabel: 'Novela', category: 'topologia', icon: <BookOpen size={15} />, subtitle: 'Trilogía Estación Humanidad' },
 
   // 3. Sistemas & Arcanos
-  { id: 'cronosistema', label: 'Cronosistema Binario', shortLabel: 'Tiempo', category: 'sistemas', icon: <Clock size={15} />, subtitle: 'Viras, Fulas y Nemas' },
+  { id: 'cronosistema', label: 'Cronosistema Binario', shortLabel: 'Tiempo', category: 'sistemas', icon: <Clock size={15} />, subtitle: 'Horocrono & Calendario Zou' },
   { id: 'vortices', label: 'Los 9 Vórtices', shortLabel: 'Vórtices', category: 'sistemas', icon: <Compass size={15} />, subtitle: 'Escuela de Iccarus Dern' },
   { id: 'hava', label: 'Dossier HAVA', shortLabel: 'HAVA', category: 'sistemas', icon: <AlertTriangle size={15} />, subtitle: 'Clasificado Obsidiana', alert: true },
 
@@ -197,14 +211,28 @@ const StationLiveClock: React.FC<StationLiveClockProps> = React.memo(({
 });
 
 // =========================================================================
-// BLOQUE DE ANOTACIONES & IDEAS DEL AUTOR (COMPONENTE ESTABLE Y MEMOIZADO)
+// CONTEXTO Y BLOQUE DEL ECOSISTEMA DE APUNTES DEL AUTOR (MULTINOTAS & VÍNCULOS)
 // =========================================================================
+interface LoreNotesContextType {
+  authorNotes: AuthorNote[];
+  customThematics: string[];
+  onSaveNote: (note: AuthorNote) => void;
+  onDeleteNote: (noteId: string) => void;
+  onTogglePin: (noteId: string) => void;
+  onSaveCustomThematic: (thematic: string) => void;
+  onNavigateToEntity: (type: 'character' | 'deck' | 'substance' | 'vortex' | 'section', id: string) => void;
+}
+
+const LoreNotesContext = React.createContext<LoreNotesContextType | null>(null);
+
 interface AuthorNotesBlockProps {
   noteKey: string;
   title: string;
   placeholder?: string;
-  noteValue: string;
-  onUpdateNote: (key: string, note: string) => void;
+  noteValue?: string;
+  onUpdateNote?: (key: string, note: string) => void;
+  sectionId?: LoreSubTab;
+  subtitle?: string;
 }
 
 const AuthorNotesBlock: React.FC<AuthorNotesBlockProps> = React.memo(({
@@ -212,90 +240,47 @@ const AuthorNotesBlock: React.FC<AuthorNotesBlockProps> = React.memo(({
   title,
   placeholder,
   noteValue,
-  onUpdateNote
+  onUpdateNote,
+  sectionId,
+  subtitle
 }) => {
-  const [isOpen, setIsOpen] = useState<boolean>(true);
-  const [localText, setLocalText] = useState<string>(noteValue || '');
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const ctx = React.useContext(LoreNotesContext);
 
-  // Sincronizar texto local si cambia la entidad o valor externo
-  useEffect(() => {
-    setLocalText(noteValue || '');
-  }, [noteKey, noteValue]);
+  const deducedSectionId = useMemo(() => {
+    if (sectionId) return sectionId;
+    if (noteKey.includes('sociedad')) return 'sociedad';
+    if (noteKey.includes('cronosistema')) return 'cronosistema';
+    if (noteKey.includes('leader_') || noteKey.includes('lideres')) return 'lideres';
+    if (noteKey.includes('deck_') || noteKey.includes('cubiertas')) return 'cubiertas';
+    if (noteKey.includes('char_') || noteKey.includes('personajes')) return 'personajes';
+    if (noteKey.includes('thalvus')) return 'thalvus';
+    if (noteKey.includes('evolucion')) return 'evolucion-madres';
+    if (noteKey.includes('dorada') || noteKey.includes('apagon')) return 'dorada-apagon';
+    if (noteKey.includes('era_') || noteKey.includes('cronica')) return 'cronica';
+    if (noteKey.includes('vortex_') || noteKey.includes('vortices')) return 'vortices';
+    if (noteKey.includes('hava')) return 'hava';
+    if (noteKey.includes('novela') || noteKey.includes('book_')) return 'novela';
+    if (noteKey.includes('oraculo')) return 'oraculo';
+    return 'sociedad';
+  }, [noteKey, sectionId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const nextVal = e.target.value;
-    setLocalText(nextVal);
-    setIsSaving(true);
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      onUpdateNote(noteKey, nextVal);
-      setIsSaving(false);
-    }, 400);
-  };
-
-  const handleBlur = () => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    if (localText !== noteValue) {
-      onUpdateNote(noteKey, localText);
-    }
-    setIsSaving(false);
-  };
-
-  const hasContent = Boolean(localText && localText.trim());
+  if (!ctx) return null;
 
   return (
-    <div className="p-4 rounded-3xl bg-slate-950/70 border border-amber-500/20 backdrop-blur-xl space-y-2.5 transition-all">
-      <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-between cursor-pointer select-none"
-      >
-        <span className="text-xs font-mono uppercase tracking-widest text-amber-300 font-bold flex items-center gap-2">
-          <Edit3 size={13} className="text-amber-400" />
-          <span>Anotaciones & Nuevas Ideas del Autor // {title}</span>
-          {hasContent && (
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Notas activas guardadas" />
-          )}
-        </span>
-        <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
-          <span className="text-slate-500 hidden sm:inline">Guardado en memoria local</span>
-          <ChevronRight size={14} className={`transform transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-        </div>
-      </div>
-
-      {isOpen && (
-        <div className="space-y-2 pt-1">
-          <textarea
-            value={localText}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            placeholder={placeholder || "Escribe aquí cualquier dato nuevo, ideas para la novela, modificaciones de lore o reflexiones..."}
-            rows={3}
-            className="w-full bg-black/60 border border-white/10 rounded-2xl p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500/50 font-sans leading-relaxed resize-y select-text"
-          />
-          <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
-            <span>{localText.length} caracteres</span>
-            {isSaving ? (
-              <span className="text-amber-400 flex items-center gap-1 font-bold">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                <span>Guardando cambios...</span>
-              </span>
-            ) : hasContent ? (
-              <span className="text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 size={11} />
-                <span>Guardado en memoria</span>
-              </span>
-            ) : null}
-          </div>
-        </div>
-      )}
-    </div>
+    <AuthorNotesEcosystem
+      sectionId={deducedSectionId}
+      noteKey={noteKey}
+      title={title}
+      subtitle={subtitle}
+      placeholder={placeholder}
+      authorNotes={ctx.authorNotes}
+      customThematics={ctx.customThematics}
+      onSaveNote={ctx.onSaveNote}
+      onDeleteNote={ctx.onDeleteNote}
+      onTogglePin={ctx.onTogglePin}
+      onSaveCustomThematic={ctx.onSaveCustomThematic}
+      onNavigateToEntity={ctx.onNavigateToEntity}
+    />
   );
 });
 
@@ -307,6 +292,35 @@ const LoreAtlas: React.FC = () => {
   const [sidebarSearch, setSidebarSearch] = useState<string>('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [isEditMode, setIsEditMode] = useState<boolean>(true);
+
+  // Estado y launcher para Horocrono nativo
+  const [horocronoLaunchStatus, setHorocronoLaunchStatus] = useState<string | null>(null);
+
+  const handleLaunchHorocrono = async (view: 'main' | 'minihud' = 'main') => {
+    if (typeof window !== 'undefined' && window.suiteAPI?.launchHorocrono) {
+      setHorocronoLaunchStatus(view === 'minihud' ? 'Iniciando Mini-HUD flotante...' : 'Iniciando Horocrono...');
+      try {
+        await window.suiteAPI.launchHorocrono({ view });
+        setHorocronoLaunchStatus(view === 'minihud' ? '✓ Mini-HUD activo en pantalla' : '✓ Horocrono iniciado');
+      } catch (err) {
+        if (view === 'minihud') {
+          window.open('?view=minihud#minihud', 'MiniHud', 'width=480,height=400,menubar=no,toolbar=no,location=no,status=no,resizable=yes');
+        } else {
+          window.open('?view=horocrono#horocrono', '_blank', 'width=1280,height=880,menubar=no,toolbar=no,location=no,status=no,resizable=yes');
+        }
+        setHorocronoLaunchStatus('✓ Ventana iniciada');
+      }
+    } else if (typeof window !== 'undefined') {
+      if (view === 'minihud') {
+        window.open('?view=minihud#minihud', 'MiniHud', 'width=480,height=400,menubar=no,toolbar=no,location=no,status=no,resizable=yes');
+        setHorocronoLaunchStatus('✓ Mini-HUD flotante abierto');
+      } else {
+        window.open('?view=horocrono#horocrono', '_blank', 'width=1280,height=880,menubar=no,toolbar=no,location=no,status=no,resizable=yes');
+        setHorocronoLaunchStatus('✓ Horocrono abierto');
+      }
+    }
+    setTimeout(() => setHorocronoLaunchStatus(null), 3000);
+  };
 
   // Modal Universal de Edición
   const [editingEntity, setEditingEntity] = useState<{
@@ -433,33 +447,155 @@ const LoreAtlas: React.FC = () => {
     if (e.target) e.target.value = '';
   };
 
-  // Contabilidad de notas de autor
+  // =========================================================================
+  // GESTIÓN DEL ECOSISTEMA DE APUNTES DEL AUTOR (MULTINOTAS & VÍNCULOS)
+  // =========================================================================
+  const handleSaveAuthorNote = (note: AuthorNote) => {
+    setLoreStore(prev => {
+      const existing = prev.authorNotes || [];
+      const index = existing.findIndex(n => n.id === note.id);
+      let updated: AuthorNote[];
+      if (index >= 0) {
+        updated = [...existing];
+        updated[index] = note;
+      } else {
+        updated = [note, ...existing];
+      }
+
+      // Sincronizar en customNotes para compatibilidad si tiene key
+      const nextCustom = { ...prev.customNotes };
+      if (note.key) {
+        nextCustom[note.key] = note.content;
+      }
+
+      const next = {
+        ...prev,
+        authorNotes: updated,
+        customNotes: nextCustom,
+        lastModified: new Date().toISOString()
+      };
+      saveLoreStore(next);
+      return next;
+    });
+  };
+
+  const handleDeleteAuthorNote = (noteId: string) => {
+    setLoreStore(prev => {
+      const existing = prev.authorNotes || [];
+      const noteToDelete = existing.find(n => n.id === noteId);
+      const updated = existing.filter(n => n.id !== noteId);
+
+      const nextCustom = { ...prev.customNotes };
+      if (noteToDelete?.key) {
+        const remainingWithKey = updated.filter(n => n.key === noteToDelete.key);
+        if (remainingWithKey.length === 0) {
+          delete nextCustom[noteToDelete.key];
+        } else {
+          nextCustom[noteToDelete.key] = remainingWithKey[0].content;
+        }
+      }
+
+      const next = {
+        ...prev,
+        authorNotes: updated,
+        customNotes: nextCustom,
+        lastModified: new Date().toISOString()
+      };
+      saveLoreStore(next);
+      return next;
+    });
+  };
+
+  const handleTogglePinAuthorNote = (noteId: string) => {
+    setLoreStore(prev => {
+      const existing = prev.authorNotes || [];
+      const updated = existing.map(n => {
+        if (n.id === noteId) {
+          return { ...n, isPinned: !n.isPinned, updatedAt: new Date().toISOString() };
+        }
+        return n;
+      });
+      const next = {
+        ...prev,
+        authorNotes: updated,
+        lastModified: new Date().toISOString()
+      };
+      saveLoreStore(next);
+      return next;
+    });
+  };
+
+  const handleSaveCustomThematic = (thematic: string) => {
+    if (!thematic || !thematic.trim()) return;
+    setLoreStore(prev => {
+      const existing = prev.customThematics || [];
+      if (existing.some(t => t.toLowerCase() === thematic.trim().toLowerCase())) return prev;
+      const next = {
+        ...prev,
+        customThematics: [...existing, thematic.trim()],
+        lastModified: new Date().toISOString()
+      };
+      saveLoreStore(next);
+      return next;
+    });
+  };
+
+  const handleNavigateFromNote = (type: 'character' | 'deck' | 'substance' | 'vortex' | 'section', id: string) => {
+    if (type === 'section') {
+      setActiveSubTab(id as LoreSubTab);
+    } else if (type === 'character') {
+      setActiveSubTab('personajes');
+      setSelectedCharacterId(id);
+    } else if (type === 'deck') {
+      setActiveSubTab('cubiertas');
+      setSelectedDeckRange(id);
+    } else if (type === 'substance') {
+      setActiveSubTab('sociedad');
+    } else if (type === 'vortex') {
+      setActiveSubTab('vortices');
+      setSelectedVortexId(id);
+    }
+  };
+
+  // Contabilidad precisa y dinámica de notas del autor
   const totalNotesCount = useMemo(() => {
-    return Object.values(loreStore.customNotes || {}).filter(v => Boolean(v && v.trim())).length;
-  }, [loreStore.customNotes]);
+    return (loreStore.authorNotes || []).length;
+  }, [loreStore.authorNotes]);
 
   const isLoreModified = useMemo(() => {
     return Boolean(loreStore.lastModified || totalNotesCount > 0);
   }, [loreStore.lastModified, totalNotesCount]);
 
   const getSubTabNotesCount = (subtabId: LoreSubTab): number => {
-    const notes = loreStore.customNotes || {};
-    return Object.keys(notes).filter(key => {
-      if (!notes[key]?.trim()) return false;
-      if (subtabId === 'lideres' && key.startsWith('leader_')) return true;
-      if (subtabId === 'cubiertas' && key.startsWith('deck_')) return true;
-      if (subtabId === 'personajes' && key.startsWith('char_')) return true;
-      if (subtabId === 'thalvus' && key.startsWith('thalvus_')) return true;
-      if (subtabId === 'cronica' && key.startsWith('era_')) return true;
-      if (subtabId === 'vortices' && key.startsWith('vortex_')) return true;
-      if (subtabId === 'evolucion-madres' && key === 'evolucion_madres_notes') return true;
-      if (subtabId === 'dorada-apagon' && key === 'dorada_apagon_notes') return true;
-      if (subtabId === 'novela' && key.startsWith('book_')) return true;
-      if (key === `section_${subtabId}`) return true;
-      if (key === `${subtabId}_notes`) return true;
+    const notes = loreStore.authorNotes || [];
+    return notes.filter(n => {
+      if (n.sectionId === subtabId) return true;
+      if (subtabId === 'lideres' && n.key?.startsWith('leader_')) return true;
+      if (subtabId === 'cubiertas' && n.key?.startsWith('deck_')) return true;
+      if (subtabId === 'personajes' && n.key?.startsWith('char_')) return true;
+      if (subtabId === 'thalvus' && n.key?.startsWith('thalvus_')) return true;
+      if (subtabId === 'cronica' && n.key?.startsWith('era_')) return true;
+      if (subtabId === 'vortices' && n.key?.startsWith('vortex_')) return true;
+      if (subtabId === 'evolucion-madres' && (n.key === 'evolucion_madres_notes' || n.sectionId === 'evolucion-madres')) return true;
+      if (subtabId === 'dorada-apagon' && (n.key === 'dorada_apagon_notes' || n.sectionId === 'dorada-apagon')) return true;
+      if (subtabId === 'novela' && n.key?.startsWith('book_')) return true;
+      if (subtabId === 'sociedad' && (n.key === 'sociedad_notes' || n.sectionId === 'sociedad')) return true;
+      if (subtabId === 'cronosistema' && (n.key === 'cronosistema_notes' || n.sectionId === 'cronosistema')) return true;
+      if (subtabId === 'hava' && (n.key === 'hava_notes' || n.sectionId === 'hava')) return true;
+      if (subtabId === 'oraculo' && (n.key === 'oraculo_notes' || n.sectionId === 'oraculo')) return true;
       return false;
     }).length;
   };
+
+  const notesContextValue = useMemo(() => ({
+    authorNotes: loreStore.authorNotes || [],
+    customThematics: loreStore.customThematics || [],
+    onSaveNote: handleSaveAuthorNote,
+    onDeleteNote: handleDeleteAuthorNote,
+    onTogglePin: handleTogglePinAuthorNote,
+    onSaveCustomThematic: handleSaveCustomThematic,
+    onNavigateToEntity: handleNavigateFromNote
+  }), [loreStore.authorNotes, loreStore.customThematics]);
 
   // Calculadora de Cronosistema
   const [calcYears, setCalcYears] = useState<number>(28);
@@ -569,7 +705,8 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
   };
 
   return (
-    <div className="space-y-6 w-full max-w-[99vw] 2xl:max-w-[1920px] mx-auto pb-12 select-none px-2 sm:px-4">
+    <LoreNotesContext.Provider value={notesContextValue}>
+      <div className="space-y-6 w-full max-w-[99vw] 2xl:max-w-[1920px] mx-auto pb-12 select-none px-2 sm:px-4">
       {/* ========================================================================= */}
       {/* ENCABEZADO MONUMENTAL // PROTOCOLO THALIOS SOLARIS                        */}
       {/* ========================================================================= */}
@@ -2025,8 +2162,84 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
       {/* VENTANA 4: CRONOSISTEMA & CALCULADORA                                      */}
       {/* ========================================================================= */}
       {activeSubTab === 'cronosistema' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
+        <div className="space-y-6 animate-fade-in">
+          {/* HERO BANNER: ACCESO DIRECTO NATIVO A HOROCRONO */}
+          <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950/40 border border-cyan-500/40 shadow-[0_0_40px_rgba(34,211,238,0.18)] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+            <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              {/* Left Details */}
+              <div className="space-y-3 max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-[10px] font-mono tracking-widest bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold uppercase flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                    APP NATIVA DE ESCRITORIO
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                    ALWAYS-ON-TOP MINI-HUD
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    CALENDARIO NEMA & 12 ZOU
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="font-display font-bold text-2xl text-white tracking-wide flex items-center gap-2.5">
+                    <Clock className="w-6 h-6 text-cyan-400 animate-pulse" />
+                    <span>HOROCRONO // HOROLOGIO & CRONOSISTEMA</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 font-sans leading-relaxed mt-1">
+                    Aplicación autónoma para Windows sincronizada con el ritmo biológico y computacional de la Estación (Tala de 48h, 1 Vira = 0.659s). Incluye widget flotante personalizable Always-On-Top, cronómetro binario, temporizador de guardias, conversor universal y el nuevo <strong className="text-cyan-300">Calendario Transversal con las 12 Fases Zou</strong> y efemérides de la nave.
+                  </p>
+                </div>
+
+                {/* Telemetry pill */}
+                <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-400 pt-1">
+                  <span className="text-cyan-300">
+                    1 Tala = <strong className="text-white">48 horas</strong>
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-amber-300">
+                    1 Vira = <strong className="text-white">0.65918s (1.517 Hz)</strong>
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-purple-300">
+                    1 Nema = <strong className="text-white">16 Talas (32 días)</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Right Action Buttons */}
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-3 w-full lg:w-auto shrink-0">
+                <button
+                  onClick={() => handleLaunchHorocrono('main')}
+                  className="px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs font-mono tracking-wider shadow-[0_0_25px_rgba(34,211,238,0.4)] flex items-center justify-center gap-2.5 transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                >
+                  <ExternalLink size={15} />
+                  <span>ABRIR HOROCRONO (APP COMPLETA)</span>
+                </button>
+
+                <button
+                  onClick={() => handleLaunchHorocrono('minihud')}
+                  className="px-5 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 font-bold text-xs font-mono tracking-wider flex items-center justify-center gap-2.5 transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                >
+                  <Pin size={15} />
+                  <span>LANZAR MINI-HUD FLOTANTE</span>
+                </button>
+
+                {/* Status alert message */}
+                {horocronoLaunchStatus && (
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-cyan-500/50 text-[11px] font-mono text-cyan-300 text-center animate-fade-in shadow-lg">
+                    {horocronoLaunchStatus}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Tabla de Medidas Binarias */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-7 space-y-4">
             <div className="p-6 rounded-3xl bg-slate-950/80 border border-white/10 space-y-4">
               <div className="flex items-center justify-between border-b border-white/5 pb-3">
@@ -2127,6 +2340,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
               onUpdateNote={handleUpdateNote}
             />
           </div>
+        </div>
         </div>
       )}
 
@@ -2614,7 +2828,8 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
         onClose={() => setEditingEntity(null)}
         onSave={handleSaveEntity}
       />
-    </div>
+      </div>
+    </LoreNotesContext.Provider>
   );
 };
 

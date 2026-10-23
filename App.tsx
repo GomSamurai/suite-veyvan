@@ -10,6 +10,7 @@ import VeyvanAcademy from './components/VeyvanAcademy';
 import CalligramStudio from './components/CalligramStudio';
 import LoreAtlas from './components/LoreAtlas';
 import { useLexicon } from './context/LexiconContext';
+import HorocronoRoot from './components/horocrono/HorocronoRoot';
 
 class SafeBoundary extends React.Component<{ children: React.ReactNode; name: string }, { hasError: boolean; error: string }> {
   constructor(props: any) {
@@ -44,6 +45,18 @@ class SafeBoundary extends React.Component<{ children: React.ReactNode; name: st
 }
 
 const App: React.FC = () => {
+  // Enrutamiento directo e integrado para Horocrono y Mini-HUD (Nativo / Popout)
+  const isHorocronoMode = typeof window !== 'undefined' && (
+    window.location.search.includes('view=horocrono') || 
+    window.location.hash.includes('horocrono') ||
+    window.location.search.includes('view=minihud') || 
+    window.location.hash.includes('minihud')
+  );
+
+  if (isHorocronoMode) {
+    return <HorocronoRoot />;
+  }
+
   const {
     activeTab,
     setActiveTab,

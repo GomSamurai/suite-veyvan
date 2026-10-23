@@ -1,0 +1,132 @@
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Outfit', sans-serif;
+    background-color: #07090e;
+    color: #e2e8f0;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(12, 16, 23, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.6);
+}
+
+/* Sci-fi Scanline Effect (subtle bridge telemetry) */
+.scanline-bg {
+  background-image: linear-gradient(
+    rgba(14, 165, 233, 0.02) 50%, 
+    rgba(0, 0, 0, 0.25) 50%
+  );
+  background-size: 100% 4px;
+}
+
+/* Subtle Starfield & Grid */
+.station-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+/* Glowing effects */
+.glow-cyan {
+  text-shadow: 0 0 12px rgba(6, 182, 212, 0.6), 0 0 24px rgba(6, 182, 212, 0.3);
+}
+
+.glow-amber {
+  text-shadow: 0 0 12px rgba(245, 158, 11, 0.6), 0 0 24px rgba(245, 158, 11, 0.3);
+}
+
+.glow-kroma8 {
+  text-shadow: 0 0 15px rgba(239, 68, 68, 0.8), 0 0 30px rgba(239, 68, 68, 0.4);
+}
+
+.box-glow-cyan {
+  box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.25), inset 0 0 15px -5px rgba(6, 182, 212, 0.15);
+}
+
+.box-glow-kroma8 {
+  box-shadow: 0 0 35px -5px rgba(239, 68, 68, 0.35), inset 0 0 20px -5px rgba(239, 68, 68, 0.2);
+  animation: pulse-kroma8 2s infinite ease-in-out;
+}
+
+@keyframes pulse-kroma8 {
+  0%, 100% {
+    border-color: rgba(239, 68, 68, 0.8);
+    box-shadow: 0 0 35px -5px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 0 15px -5px rgba(239, 68, 68, 0.15);
+  }
+}
+
+/* Vira Tick Blinker */
+@keyframes vira-pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-vira {
+  animation: vira-pulse 0.659s infinite ease-in-out;
+}
+
+/* Glassmorphism panel */
+.glass-panel {
+  background: rgba(12, 16, 23, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(17, 23, 34, 0.85);
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+/* Corner HUD brackets */
+.hud-corner {
+  position: relative;
+}
+.hud-corner::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid rgba(6, 182, 212, 0.7);
+  border-left: 2px solid rgba(6, 182, 212, 0.7);
+  pointer-events: none;
+}
+.hud-corner::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid rgba(6, 182, 212, 0.7);
+  border-right: 2px solid rgba(6, 182, 212, 0.7);
+  pointer-events: none;
+}
