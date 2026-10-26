@@ -139,6 +139,91 @@ export type KokoroVoiceId = typeof VALID_KOKORO_VOICES[number]['id'];
 export const VALID_KOKORO_VOICE_IDS = new Set(VALID_KOKORO_VOICES.map(v => v.id));
 
 /**
+ * Convierte cualquier número entero de 0 a 9999 a su representación textual en español
+ */
+export function numToSpanishWords(n: number): string {
+  if (isNaN(n)) return '';
+  const units = ['', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez',
+    'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve'];
+  const tens = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+  const hundreds = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+
+  if (n === 0) return 'cero';
+  if (n === 100) return 'cien';
+  if (n < 20) return units[n];
+  if (n < 30) return n === 20 ? 'veinte' : 'veinti' + units[n % 10];
+  if (n < 100) {
+    const u = n % 10;
+    return tens[Math.floor(n / 10)] + (u > 0 ? ' y ' + units[u] : '');
+  }
+  if (n < 1000) {
+    const rem = n % 100;
+    return hundreds[Math.floor(n / 100)] + (rem > 0 ? ' ' + numToSpanishWords(rem) : '');
+  }
+  if (n < 10000) {
+    const thousands = Math.floor(n / 1000);
+    const rem = n % 1000;
+    const thStr = thousands === 1 ? 'mil' : numToSpanishWords(thousands) + ' mil';
+    return thStr + (rem > 0 ? ' ' + numToSpanishWords(rem) : '');
+  }
+  return String(n);
+}
+
+/**
+ * Expande números, fechas y años dentro de un texto a palabras en español para dicción fluida
+ */
+export function expandNumbersInSpanish(text: string): string {
+  return text
+    // Casos especiales de gran escala en el lore
+    .replace(/\b12\.300\.000\b/g, 'doce millones trescientos mil')
+    .replace(/\b150\.000\b/g, 'ciento cincuenta mil')
+    .replace(/\b(\d+)\.000\b/g, (_, p1) => `${numToSpanishWords(parseInt(p1, 10))} mil`)
+    .replace(/\b(\d+)\s*%/g, (_, p1) => `${numToSpanishWords(parseInt(p1, 10))} por ciento`)
+    .replace(/\bd\.C\./gi, 'después de Cristo')
+    .replace(/\ba\.C\./gi, 'antes de Cristo')
+    // Años y números de hasta 4 cifras
+    .replace(/\b\d{1,4}\b/g, (m) => numToSpanishWords(parseInt(m, 10)));
+}
+
+/**
+ * Divide un texto extenso en oraciones completas de longitud óptima para inferencia neural
+ */
+export function splitTextIntoSentences(text: string, maxChunkLen: number = 220): string[] {
+  if (!text) return [];
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const rawSentences = clean.split(/(?<=[.!?;\n])\s+/);
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const s of rawSentences) {
+    if (!s.trim()) continue;
+    if (current.length + s.length + 1 <= maxChunkLen) {
+      current = current ? `${current} ${s}` : s;
+    } else {
+      if (current) chunks.push(current);
+      if (s.length > maxChunkLen) {
+        const clauses = s.split(/(?<=[,:\-—])\s+/);
+        let sub = '';
+        for (const c of clauses) {
+          if (sub.length + c.length + 1 <= maxChunkLen) {
+            sub = sub ? `${sub} ${c}` : c;
+          } else {
+            if (sub) chunks.push(sub);
+            sub = c;
+          }
+        }
+        if (sub) chunks.push(sub);
+        current = '';
+      } else {
+        current = s;
+      }
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks.filter(c => c.trim().length > 0);
+}
+
+/**
  * Fonetizador fonémico para Kokoro-82M (Español Peninsular / Castellano / Neutro)
  * Transforma texto ortográfico en español a cadenas de fonemas IPA estándar del vocabulario de Kokoro.
  * Elimina por completo el acento anglosajón del fonetizador en inglés por defecto.
@@ -146,24 +231,21 @@ export const VALID_KOKORO_VOICE_IDS = new Set(VALID_KOKORO_VOICES.map(v => v.id)
 export function spanishToIpa(text: string, mode: 'castellano' | 'latam' = 'castellano'): string {
   if (!text) return '';
 
-  // 1. Normalización de números comunes y términos diegéticos
-  let t = text
-    .replace(/\b1\b/g, 'uno')
-    .replace(/\b2\b/g, 'dos')
-    .replace(/\b3\b/g, 'tres')
-    .replace(/\b4\b/g, 'cuatro')
-    .replace(/\b5\b/g, 'cinco')
-    .replace(/\b6\b/g, 'seis')
-    .replace(/\b7\b/g, 'siete')
-    .replace(/\b8\b/g, 'ocho')
-    .replace(/\b9\b/g, 'nueve')
-    .replace(/\b10\b/g, 'diez')
-    .replace(/\b320\b/g, 'trescientas veinte')
-    .replace(/\b100\b/g, 'cien')
+  // 1. Expansión de números a palabras completas
+  let t = expandNumbersInSpanish(text);
+
+  // 2. Normalización de caracteres y diéresis fantásticas
+  t = t
+    .replace(/ë/g, 'e').replace(/Ë/g, 'E')
+    .replace(/ï/g, 'i').replace(/Ï/g, 'I')
+    .replace(/ä/g, 'a').replace(/Ä/g, 'A')
+    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+    .replace(/[«»“”]/g, '"')
+    .replace(/[‘’']/g, '') // Eliminar apóstrofes para que nombres como Tael'im o Ner'Val fluyan
+    .replace(/—|–/g, ', ')
+    .replace(/…/g, '...')
     .replace(/\bthalios\b/gi, 'talios')
     .replace(/\bth/gi, 't');
-
-  t = t.replace(/[«»“”]/g, '"').replace(/[‘’]/g, "'");
 
   const CLITICS = new Set([
     'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 
@@ -191,7 +273,7 @@ export function spanishToIpa(text: string, mode: 'castellano' | 'latam' = 'caste
     // X siempre como ks
     w = w.replace(/x/g, 'ks');
 
-    // C y Z según modo fonético
+    // C y Z según modo fonético (Castellano ceceante o Latam seseante)
     if (mode === 'castellano') {
       w = w.replace(/c([eéií])/g, 'θ$1');
       w = w.replace(/z/g, 'θ');
@@ -301,6 +383,8 @@ class ThaliosVoiceService {
   // Elementos de reproducción de audio externo (Gemini/Kokoro)
   private currentAudioElement: HTMLAudioElement | null = null;
   private currentBufferSource: AudioBufferSourceNode | null = null;
+  private scheduledBufferSources: AudioBufferSourceNode[] = [];
+  private queueCancelToken: number = 0;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   
   // Temporizadores
@@ -856,44 +940,106 @@ class ThaliosVoiceService {
   ): Promise<void> {
     try {
       this.state.isLoading = true;
-      this.state.currentTitle = 'Sintetizando con Kokoro-82M ONNX...';
+      this.state.currentTitle = 'Inicializando síntesis Kokoro-82M...';
       this.notifyListeners();
 
       const tts = await this.getKokoro();
-
-      // Limitar longitud de texto por bloque para mantener la respuesta fluida
-      const cleanSnippet = text.length > 800 ? text.slice(0, 800) + '...' : text;
+      const cancelId = ++this.queueCancelToken;
 
       let voiceKey = this.config.kokoroVoice || 'em_santa';
       if (!VALID_KOKORO_VOICE_IDS.has(voiceKey as any)) {
         voiceKey = 'em_santa';
       }
 
-      // 1. Convertir texto en español a fonemas IPA castellanos reales
-      // Esto elimina por completo el acento americano/inglés y hace que hable en perfecto castellano
       const dialect = this.config.kokoroDialect || 'castellano';
-      const ipa = spanishToIpa(cleanSnippet, dialect);
 
-      // 2. Tokenizar directamente la transcripción fonética IPA en Kokoro
-      const { input_ids } = tts.tokenizer(ipa, { truncation: true });
+      // 1. Dividir el texto en oraciones naturales y completas
+      const chunks = splitTextIntoSentences(text, 220);
+      if (chunks.length === 0) {
+        this.stop();
+        if (options.onEnd) options.onEnd();
+        return;
+      }
 
-      // 3. Generar audio directamente mediante generate_from_ids con la voz nativa o adaptada
-      const audio = await tts.generate_from_ids(input_ids, {
-        voice: voiceKey,
-        speed: Math.max(0.7, Math.min(1.3, this.config.rate || 1.0))
-      });
+      const ctx = this.initAudioContext();
+      if (!ctx || !this.biquadFilter) {
+        throw new Error('AudioContext no inicializado');
+      }
 
-      // Reproducción directa de alta fidelidad vía Web Audio Buffer
-      if (audio && audio.audio && audio.audio instanceof Float32Array) {
-        await this.playAudioBuffer(audio.audio, audio.sampling_rate || 24000, options);
-      } else {
-        const blob = audio.toBlob ? audio.toBlob() : new Blob([audio.toWav()], { type: 'audio/wav' });
-        await this.playAudioFromBlob(blob, options);
+      let nextStartTime = ctx.currentTime + 0.05;
+      this.scheduledBufferSources = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        // Verificar si el usuario canceló o detuvo la reproducción
+        if (cancelId !== this.queueCancelToken || !this.state.isSpeaking) {
+          break;
+        }
+
+        const chunkText = chunks[i];
+        if (chunks.length > 1) {
+          this.state.currentTitle = `Transmitiendo bitácora (${i + 1}/${chunks.length})...`;
+          this.notifyListeners();
+        }
+
+        // Convertir a fonemas IPA en castellano
+        const ipa = spanishToIpa(chunkText, dialect);
+        if (!ipa || !ipa.trim()) continue;
+
+        // Tokenizar y generar audio con los pesos neurales seleccionados
+        const { input_ids } = tts.tokenizer(ipa, { truncation: true });
+        const audio = await tts.generate_from_ids(input_ids, {
+          voice: voiceKey,
+          speed: Math.max(0.7, Math.min(1.3, this.config.rate || 1.0))
+        });
+
+        if (cancelId !== this.queueCancelToken || !this.state.isSpeaking) {
+          break;
+        }
+
+        if (audio && audio.audio && audio.audio instanceof Float32Array && audio.audio.length > 0) {
+          const samples: Float32Array = audio.audio;
+          const sampleRate = audio.sampling_rate || 24000;
+          const audioBuffer = ctx.createBuffer(1, samples.length, sampleRate);
+          audioBuffer.getChannelData(0).set(samples);
+
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(this.biquadFilter);
+
+          if (nextStartTime < ctx.currentTime) {
+            nextStartTime = ctx.currentTime + 0.02;
+          }
+
+          source.start(nextStartTime);
+          this.scheduledBufferSources.push(source);
+
+          // Si es el primer fragmento, desbloquear el indicador de carga
+          if (i === 0) {
+            this.state.isLoading = false;
+            this.notifyListeners();
+          }
+
+          const isLast = (i === chunks.length - 1);
+          if (isLast) {
+            source.onended = async () => {
+              if (cancelId !== this.queueCancelToken) return;
+              this.setIntercomStatic(false);
+              await this.playTransmissionChime('close');
+              this.stop();
+              if (options.onEnd) options.onEnd();
+            };
+          }
+
+          // Pausa natural entre oraciones (140 ms de respiración)
+          nextStartTime += audioBuffer.duration + 0.14;
+        }
       }
     } catch (err: any) {
       console.error('Fallo en síntesis con Kokoro-82M ONNX:', err);
       this.state.isLoading = false;
+      this.stop();
       this.notifyListeners();
+      if (options.onError) options.onError(err);
       throw err;
     }
   }
@@ -1088,6 +1234,18 @@ class ThaliosVoiceService {
   public stop(notify: boolean = true): void {
     this.stopElapsedTimer();
     this.setIntercomStatic(false);
+    this.queueCancelToken++;
+
+    if (this.scheduledBufferSources && this.scheduledBufferSources.length > 0) {
+      for (const src of this.scheduledBufferSources) {
+        try {
+          src.onended = null;
+          src.stop();
+          src.disconnect();
+        } catch {}
+      }
+      this.scheduledBufferSources = [];
+    }
 
     if (this.currentBufferSource) {
       try {

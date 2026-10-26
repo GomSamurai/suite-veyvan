@@ -630,20 +630,104 @@ const LoreAtlas: React.FC = () => {
     return () => unsub();
   }, []);
 
-  const handleToggleSpeakLore = (title: string, category: string, summary: string, extra?: string) => {
-    const id = `${title}_${category}`;
+  const handleToggleSpeakNarrative = (id: string, title: string, narration: string) => {
     if (activeSpokenText === id && thaliosVoice.getState().isSpeaking) {
       thaliosVoice.stop();
       setActiveSpokenText(null);
       return;
     }
     setActiveSpokenText(id);
-    const fullText = `${title}. Registro de ${category}. ${summary}. ${extra || ''}`;
-    thaliosVoice.speak(fullText, {
-      title: `Bitácora: ${title}`,
+    thaliosVoice.speak(narration, {
+      title,
       onEnd: () => setActiveSpokenText(null),
       onError: () => setActiveSpokenText(null),
     });
+  };
+
+  const handleToggleSpeakLore = (title: string, category: string, summary: string, extra?: string) => {
+    const id = `${title}_${category}`;
+    const cleanSummary = summary && summary !== 'undefined' ? summary : '';
+    const cleanExtra = extra && extra !== 'undefined' ? extra : '';
+    const fullText = `${title}. Registro de ${category}. ${cleanSummary} ${cleanExtra}`.trim();
+    handleToggleSpeakNarrative(id, `Bitácora: ${title}`, fullText);
+  };
+
+  const buildLeaderNarration = (leader: any): string => {
+    const parts: string[] = [];
+    parts.push(`Bitácora canónica de la travesía: ${leader.name}, ${leader.title}.`);
+    if (leader.epithet) parts.push(`Reconocido en los anales como ${leader.epithet}.`);
+    if (leader.origin && leader.period) {
+      parts.push(`Origen: ${leader.origin}. Mandato de ${leader.mandateYears} años, entre los periodos ${leader.period}.`);
+    }
+    if (leader.iconQuote) {
+      parts.push(`Cita canónica: «${leader.iconQuote}».`);
+    }
+    if (leader.biography) {
+      parts.push(`Biografía y ascenso al poder: ${leader.biography}`);
+    }
+    if (leader.crisisAndAscent) {
+      parts.push(`Crisis definitoria: ${leader.crisisAndAscent}`);
+    }
+    if (leader.keyMilestones && Array.isArray(leader.keyMilestones) && leader.keyMilestones.length > 0) {
+      parts.push(`Hitos clave del gobierno: ${leader.keyMilestones.join('. ')}`);
+    }
+    if (leader.downfallAndLegacy) {
+      parts.push(`Ocaso y desenlace: ${leader.downfallAndLegacy}`);
+    }
+    if (leader.historicalVerdict) {
+      parts.push(`Veredicto histórico: ${leader.historicalVerdict}`);
+    }
+    return parts.join(' ');
+  };
+
+  const buildDeckSectorNarration = (sector: any): string => {
+    const parts: string[] = [];
+    parts.push(`Topología de Estación Humanidad: Sector ${sector.name}, abarcando las cubiertas ${sector.deckRange}, con un total de ${sector.deckCount} niveles habitables.`);
+    parts.push(`Condición estructural: Estado ${sector.status}. Nivel de energía asignada: ${sector.energyPct}. Rango térmico medio: ${sector.tempRange}.`);
+    if (sector.description) parts.push(`Descripción estructural: ${sector.description}`);
+    if (sector.socialLife) parts.push(`Vida social y habitabilidad: ${sector.socialLife}`);
+    if (sector.notableLocations && Array.isArray(sector.notableLocations) && sector.notableLocations.length > 0) {
+      parts.push(`Enclaves notables: ${sector.notableLocations.join(', ')}.`);
+    }
+    return parts.join(' ');
+  };
+
+  const buildCharacterNarration = (char: any): string => {
+    const parts: string[] = [];
+    parts.push(`Dossier clasificado de personaje: ${char.name}.`);
+    if (char.alias) parts.push(`Conocido en los anillos como ${char.alias}.`);
+    parts.push(`Edad: ${char.ageYears} años terrestres (${char.ageNemas} nemas). Origen: Cubierta ${char.deckOrigin}. Rol: ${char.role}. Facción: ${char.faction}.`);
+    if (char.quote) parts.push(`Registro personal: «${char.quote}».`);
+    if (char.physicalDesc) parts.push(`Rasgos distintivos: ${char.physicalDesc}`);
+    if (char.psychology) parts.push(`Perfil psicológico: ${char.psychology}`);
+    if (char.moralDilemma) parts.push(`Dilema moral: ${char.moralDilemma}`);
+    if (char.weaponOrTool) parts.push(`Instrumento o arma de firma: ${char.weaponOrTool}`);
+    if (char.arcSummary) parts.push(`Arco narrativo: ${char.arcSummary}`);
+    return parts.join(' ');
+  };
+
+  const buildVortexNarration = (vortex: any): string => {
+    const parts: string[] = [];
+    parts.push(`Vórtice canónico número ${vortex.number}: ${vortex.name}. En dialecto transversal: ${vortex.transversalName}, que se traduce como ${vortex.translation}.`);
+    if (vortex.quote) parts.push(`Máxima del vórtice: «${vortex.quote}».`);
+    if (vortex.corePrinciple) parts.push(`Principio ontológico: ${vortex.corePrinciple}`);
+    if (vortex.description) parts.push(`Exégesis filosófica: ${vortex.description}`);
+    if (vortex.symbolMeaning) parts.push(`Simbología y trazo sagrado Tael'im: ${vortex.symbolMeaning}`);
+    if (vortex.factionAssociation) parts.push(`Asociación doctrinal: ${vortex.factionAssociation}`);
+    return parts.join(' ');
+  };
+
+  const buildThalvusWorkNarration = (work: any): string => {
+    const parts: string[] = [];
+    parts.push(`Tratado filosófico de Joren Thalvus: ${work.title}. Género: ${work.genre}. Redactado en el año ${work.year} de la travesía.`);
+    if (work.summary) parts.push(`Resumen de la tesis: ${work.summary}`);
+    if (work.quote) parts.push(`Aforismo central: «${work.quote}».`);
+    if (work.keyConcepts && Array.isArray(work.keyConcepts) && work.keyConcepts.length > 0) {
+      const conceptsStr = work.keyConcepts.map((c: any) => `${c.name}: ${c.description}`).join('. ');
+      parts.push(`Nodos conceptuales clave: ${conceptsStr}`);
+    }
+    if (work.impact) parts.push(`Impacto histórico en la sociedad: ${work.impact}`);
+    return parts.join(' ');
   };
 
   const handleToggleSpeakMessage = (text: string, idx: number) => {
@@ -1096,15 +1180,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleToggleSpeakLore(selectedLeader.name, selectedLeader.title, selectedLeader.legacy, selectedLeader.historicalImpact)}
+                      onClick={() => handleToggleSpeakNarrative(
+                        `leader_${selectedLeader.id}`,
+                        `Bitácora // ${selectedLeader.name}`,
+                        buildLeaderNarration(selectedLeader)
+                      )}
                       className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                        activeSpokenText === `${selectedLeader.name}_${selectedLeader.title}`
+                        activeSpokenText === `leader_${selectedLeader.id}`
                           ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
                           : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                       }`}
-                      title={activeSpokenText === `${selectedLeader.name}_${selectedLeader.title}` ? "Detener transmisión" : "Escuchar bitácora de este líder narrada por Thalios"}
+                      title={activeSpokenText === `leader_${selectedLeader.id}` ? "Detener transmisión" : "Escuchar bitácora completa de este líder narrada por Thalios"}
                     >
-                      {activeSpokenText === `${selectedLeader.name}_${selectedLeader.title}` ? (
+                      {activeSpokenText === `leader_${selectedLeader.id}` ? (
                         <>
                           <Square size={10} className="fill-current text-red-400" />
                           <span>Detener</span>
@@ -1382,6 +1470,31 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                       {selectedThalvusWork.genre}
                     </span>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggleSpeakNarrative(
+                          `thalvus_work_${selectedThalvusWork.id}`,
+                          `Tratado // ${selectedThalvusWork.title}`,
+                          buildThalvusWorkNarration(selectedThalvusWork)
+                        )}
+                        className={`px-2 py-0.5 rounded-lg border font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                          activeSpokenText === `thalvus_work_${selectedThalvusWork.id}`
+                            ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_8px_rgba(239,68,68,0.3)] animate-pulse'
+                            : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_8px_rgba(34,211,238,0.15)]'
+                        }`}
+                        title={activeSpokenText === `thalvus_work_${selectedThalvusWork.id}` ? "Detener transmisión" : "Escuchar tratado filosófico narrado por Thalios"}
+                      >
+                        {activeSpokenText === `thalvus_work_${selectedThalvusWork.id}` ? (
+                          <>
+                            <Square size={9} className="fill-current text-red-400" />
+                            <span>Detener</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 size={10} className="text-cyan-400" />
+                            <span>Escuchar Obra</span>
+                          </>
+                        )}
+                      </button>
                       <button
                         onClick={() => setEditingEntity({ type: 'thalvusWork', item: selectedThalvusWork, workIndex: selectedThalvusWorkIndex })}
                         className="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
@@ -2018,20 +2131,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleToggleSpeakLore(
-                        `Sector ${selectedDeckSector.name}`,
-                        `Cubiertas ${selectedDeckSector.deckRange}`,
-                        selectedDeckSector.description,
-                        `Atmósfera social: ${selectedDeckSector.socialAtmosphere}. Clima: ${selectedDeckSector.climate}. Temperatura: ${selectedDeckSector.tempRange}`
+                      onClick={() => handleToggleSpeakNarrative(
+                        `deck_${selectedDeckSector.id}`,
+                        `Topología // Sector ${selectedDeckSector.name}`,
+                        buildDeckSectorNarration(selectedDeckSector)
                       )}
                       className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                        activeSpokenText?.startsWith(`Sector ${selectedDeckSector.name}`)
+                        activeSpokenText === `deck_${selectedDeckSector.id}`
                           ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
                           : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                       }`}
-                      title={activeSpokenText?.startsWith(`Sector ${selectedDeckSector.name}`) ? "Detener transmisión" : "Escuchar informe de esta cubierta narrado por Thalios"}
+                      title={activeSpokenText === `deck_${selectedDeckSector.id}` ? "Detener transmisión" : "Escuchar registro completo de esta cubierta narrado por Thalios"}
                     >
-                      {activeSpokenText?.startsWith(`Sector ${selectedDeckSector.name}`) ? (
+                      {activeSpokenText === `deck_${selectedDeckSector.id}` ? (
                         <>
                           <Square size={10} className="fill-current text-red-400" />
                           <span>Detener</span>
@@ -2201,20 +2313,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleToggleSpeakLore(
-                        selectedCharacter.name,
-                        `Ficción ${selectedCharacter.faction}`,
-                        selectedCharacter.bio,
-                        `Cita célebre: ${selectedCharacter.quote}. Dilema moral: ${selectedCharacter.moralDilemma}`
+                      onClick={() => handleToggleSpeakNarrative(
+                        `character_${selectedCharacter.id}`,
+                        `Dossier // ${selectedCharacter.name}`,
+                        buildCharacterNarration(selectedCharacter)
                       )}
                       className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                        activeSpokenText?.startsWith(selectedCharacter.name)
+                        activeSpokenText === `character_${selectedCharacter.id}`
                           ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
                           : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                       }`}
-                      title={activeSpokenText?.startsWith(selectedCharacter.name) ? "Detener transmisión" : "Escuchar dossier biográfico narrado por Thalios"}
+                      title={activeSpokenText === `character_${selectedCharacter.id}` ? "Detener transmisión" : "Escuchar dossier biográfico narrado por Thalios"}
                     >
-                      {activeSpokenText?.startsWith(selectedCharacter.name) ? (
+                      {activeSpokenText === `character_${selectedCharacter.id}` ? (
                         <>
                           <Square size={10} className="fill-current text-red-400" />
                           <span>Detener</span>
@@ -2547,20 +2658,19 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleToggleSpeakLore(
-                        `Vórtice ${selectedVortex.number}: ${selectedVortex.name}`,
-                        selectedVortex.transversalName,
-                        selectedVortex.quote,
-                        `Núcleo filosófico: ${selectedVortex.philosophicalCore}. Asociación: ${selectedVortex.factionAssociation}`
+                      onClick={() => handleToggleSpeakNarrative(
+                        `vortex_${selectedVortex.id}`,
+                        `Exégesis // Vórtice #${selectedVortex.number}`,
+                        buildVortexNarration(selectedVortex)
                       )}
                       className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                        activeSpokenText?.startsWith(`Vórtice ${selectedVortex.number}`)
+                        activeSpokenText === `vortex_${selectedVortex.id}`
                           ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
                           : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                       }`}
-                      title={activeSpokenText?.startsWith(`Vórtice ${selectedVortex.number}`) ? "Detener transmisión" : "Escuchar exégesis de este vórtice narrada por Thalios"}
+                      title={activeSpokenText === `vortex_${selectedVortex.id}` ? "Detener transmisión" : "Escuchar exégesis completa de este vórtice narrada por Thalios"}
                     >
-                      {activeSpokenText?.startsWith(`Vórtice ${selectedVortex.number}`) ? (
+                      {activeSpokenText === `vortex_${selectedVortex.id}` ? (
                         <>
                           <Square size={10} className="fill-current text-red-400" />
                           <span>Detener</span>
