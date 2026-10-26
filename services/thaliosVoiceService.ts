@@ -8,12 +8,29 @@ import { getAiClient, getGeminiApiKey } from './geminiService';
 export type VoiceEngineType = 'web-speech' | 'gemini-voice' | 'kokoro-onnx';
 export type DspFilterMode = 'orbital' | 'reactor' | 'clean' | 'vocoder';
 
+export type GeminiArchetype = 
+  | 'anciano'          // Anciano Sabio y Venerable (80 años)
+  | 'thalios_solaris'  // Thalios Solaris Canónico (I.A. omnisciente)
+  | 'oraculo_femenino' // Oráculo Femenino / Matriarca
+  | 'comandante'       // Comandante Marcial de Cubierta
+  | 'sacerdote'        // Sacerdote Litúrgico del Reactor
+  | 'personalizado';   // Prompt de Actuación Libre Personalizado
+
+export type GeminiEmotion = 'solemne' | 'misterioso' | 'urgente' | 'intimo' | 'cientifico';
+export type GeminiCadence = 'pausada' | 'normal' | 'dinamica';
+export type GeminiAccent = 'castellano' | 'latam';
+
 export interface ThaliosVoiceConfig {
   engine: VoiceEngineType;
   // Identificador de voz para Web Speech (URI o Name)
   voiceUri: string;
-  // Nombre de voz para Gemini Multimodal Audio (Charon, Aoede, Fenrir, Kore, Puck)
+  // Configuración de Gemini Multimodal Audio
   geminiVoice: 'Charon' | 'Aoede' | 'Fenrir' | 'Kore' | 'Puck';
+  geminiAccent: GeminiAccent;
+  geminiArchetype: GeminiArchetype;
+  geminiEmotion: GeminiEmotion;
+  geminiCadence: GeminiCadence;
+  geminiCustomPrompt: string;
   // Nombre de voz para Kokoro-82M ONNX
   kokoroVoice: string;
   // Dialecto fonético para Kokoro: 'castellano' (peninsular ceceante) o 'latam' (seseo neutro)
@@ -45,93 +62,137 @@ export interface ThaliosVoiceState {
   elapsedSeconds: number;
 }
 
-export const VALID_KOKORO_VOICES = [
-  // --- VOCES NATIVAS EN ESPAÑOL (MÁXIMA NATURALIDAD / SIN ACENTO ANGLOSAJÓN) ---
-  { 
-    id: 'em_santa', 
-    name: 'Santa', 
-    category: 'Español Nativo (Grave)', 
-    desc: 'Timbre profundo, solemne y pausado. Inferencia nativa en español, ideal para Thalios Solaris.',
-    isNativeSpanish: true
+export const GEMINI_ARCHETYPE_PRESETS: Record<GeminiArchetype, {
+  name: string;
+  icon: string;
+  recommendedVoice: 'Charon' | 'Aoede' | 'Fenrir' | 'Kore' | 'Puck';
+  desc: string;
+  prompt: string;
+}> = {
+  anciano: {
+    name: 'Anciano Sabio / Cronista',
+    icon: '👴',
+    recommendedVoice: 'Fenrir',
+    desc: 'Voz venerable de 80 años, solemne, sabia, profunda y serena, con el peso de siglos de travesía.',
+    prompt: 'Actúa con la voz de un anciano sabio y venerable de 80 años, cronista anciano de la travesía estelar. Habla en estricto castellano peninsular de España (con distinción clara de z/c y s), con tono solemne, pausado, sabio y con el peso de una vida entera de experiencia.'
   },
-  { 
-    id: 'em_alex', 
-    name: 'Alex', 
-    category: 'Español Nativo (Rector)', 
-    desc: 'Autoritaria, limpia y articulada. Gran solemnidad institucional de puente de mando.',
-    isNativeSpanish: true
+  thalios_solaris: {
+    name: 'Thalios Solaris Canónico',
+    icon: '🤖',
+    recommendedVoice: 'Charon',
+    desc: 'Inteligencia artificial omnisciente de la nave: solemne, majestuosa, autoritaria e inquebrantable.',
+    prompt: 'Actúa como Thalios Solaris, la consciencia digital omnisciente de Estación Humanidad. Habla en castellano peninsular de España, con voz solemne, autoritaria, fría, inquebrantable y con gran resonancia oracular.'
   },
-  { 
-    id: 'ef_dora', 
-    name: 'Dora', 
-    category: 'Español Nativo (Femenino)', 
-    desc: 'Voz femenina formal, cristalina y oracular. Pronunciación natural en castellano.',
-    isNativeSpanish: true
+  oraculo_femenino: {
+    name: 'Oráculo Femenino / Matriarca',
+    icon: '👑',
+    recommendedVoice: 'Aoede',
+    desc: 'Voz femenina madura o mística, solemne, poética, protectora y serena.',
+    prompt: 'Actúa con la voz de una matriarca y oráculo femenino de la Estación. Habla en castellano peninsular de España, con voz femenina cristalina, mística, solemne, poética y protectora.'
   },
+  comandante: {
+    name: 'Comandante Marcial',
+    icon: '⚔️',
+    recommendedVoice: 'Fenrir',
+    desc: 'Voz severa, firme, de mando militar en cubiertas perimetrales.',
+    prompt: 'Actúa con la voz de un comandante marcial de cubierta de la nave. Habla en castellano de España, con tono severo, disciplinado, perentorio, tajante y autoritario.'
+  },
+  sacerdote: {
+    name: 'Litúrgico / Devoto del Reactor',
+    icon: '🕯️',
+    recommendedVoice: 'Charon',
+    desc: 'Cadencia ritual y ceremoniosa de los sacerdotes que veneran el núcleo de fisión.',
+    prompt: 'Actúa con la voz de un sacerdote litúrgico del Culto al Reactor. Habla en castellano solemne, con cadencia ritual, reverente, mística y ceremoniosa.'
+  },
+  personalizado: {
+    name: 'Directiva Personalizada',
+    icon: '✍️',
+    recommendedVoice: 'Charon',
+    desc: 'Control total: redacta tus propias instrucciones de actuación vocal y acento.',
+    prompt: ''
+  }
+};
 
-  // --- VOCES NEURONALES CON ADAPTACIÓN FONÉTICA CASTELLANA ---
+export const VALID_KOKORO_VOICES = [
+  // --- VOCES GRAVES, MARCIALES Y SABIAS ---
   { 
     id: 'am_fenrir', 
     name: 'Fenrir', 
-    category: 'Masculino (Canónico Thalios)', 
-    desc: 'Grave, abismal y marcial. Fonética castellana aplicada sobre resonancia cuántica.',
-    isNativeSpanish: false
+    category: 'Grave y Marcial (Canónico Thalios)', 
+    desc: 'Timbre abismal, solemne y marcial. Gran resonancia cuántica y solemnidad de puente de mando.',
+    gender: 'Masculino'
   },
   { 
-    id: 'am_adam', 
-    name: 'Adam', 
-    category: 'Masculino (Rector)', 
-    desc: 'Firme y serena. Cadencia protocolaria de Estación.',
-    isNativeSpanish: false
-  },
-  { 
-    id: 'am_michael', 
-    name: 'Michael', 
-    category: 'Masculino (Técnico)', 
-    desc: 'Clara, analítica y neutral. Ideal para bitácoras.',
-    isNativeSpanish: false
+    id: 'am_santa', 
+    name: 'Santa', 
+    category: 'Anciano Sabio y Venerable', 
+    desc: 'Voz madura, profunda y pausada. Cadencia de cronista y sabio con siglos de experiencia.',
+    gender: 'Masculino'
   },
   { 
     id: 'bm_george', 
     name: 'George', 
-    category: 'Masculino (Litúrgico)', 
-    desc: 'Cadencia solemne y ceremoniosa.',
-    isNativeSpanish: false
+    category: 'Litúrgico y Ceremonioso', 
+    desc: 'Cadencia solemne y ceremoniosa estilo noble de nave.',
+    gender: 'Masculino'
   },
   { 
     id: 'bm_fable', 
     name: 'Fable', 
-    category: 'Masculino (Cronista)', 
-    desc: 'Tono narrativo épico para crónicas y fichas de lore.',
-    isNativeSpanish: false
+    category: 'Cronista Épico', 
+    desc: 'Tono narrativo épico ideal para relatos de la travesía y bitácoras.',
+    gender: 'Masculino'
   },
   { 
-    id: 'af_bella', 
-    name: 'Bella', 
-    category: 'Femenino (Cálida)', 
-    desc: 'Articulación superior Grado A con fonemas en español.',
-    isNativeSpanish: false
+    id: 'am_adam', 
+    name: 'Adam', 
+    category: 'Rector Institucional', 
+    desc: 'Firme, autoritaria y serena. Cadencia protocolaria de Estación.',
+    gender: 'Masculino'
+  },
+  { 
+    id: 'am_michael', 
+    name: 'Michael', 
+    category: 'Técnico y Analítico', 
+    desc: 'Clara, analítica y neutral. Registro enciclopédico.',
+    gender: 'Masculino'
+  },
+
+  // --- VOCES FEMENINAS ORACULARES Y CRISTALINAS ---
+  { 
+    id: 'af_aoede', 
+    name: 'Aoede', 
+    category: 'Oráculo Femenino Místico', 
+    desc: 'Voz oracular, poética, misteriosa y serena. Proyección cristalina.',
+    gender: 'Femenino'
   },
   { 
     id: 'af_heart', 
     name: 'Heart', 
-    category: 'Femenino (Emotiva)', 
-    desc: 'Máxima calidad neural A ❤️. Suavidad orgánica.',
-    isNativeSpanish: false
+    category: 'Matriarca Emotiva (Grado A)', 
+    desc: 'Máxima fidelidad neural (Grado A ❤️). Articulación impecable.',
+    gender: 'Femenino'
+  },
+  { 
+    id: 'af_bella', 
+    name: 'Bella', 
+    category: 'Femenino Cálido y Expresivo', 
+    desc: 'Tono cercano, articulado y formal. Muy expresiva.',
+    gender: 'Femenino'
   },
   { 
     id: 'af_kore', 
     name: 'Kore', 
-    category: 'Femenino (Archivista)', 
-    desc: 'Impasible y analítica. Registro enciclopédico.',
-    isNativeSpanish: false
+    category: 'Archivista Femenina', 
+    desc: 'Impasible, formal y analítica. Ideal para consultas lexicográficas.',
+    gender: 'Femenino'
   },
   { 
     id: 'af_sky', 
     name: 'Sky', 
-    category: 'Femenino (Oráculo)', 
-    desc: 'Etérea y mística. Proyección de interfaz.',
-    isNativeSpanish: false
+    category: 'Proyección Etérea', 
+    desc: 'Etérea y ligera, estilo holograma cuántico.',
+    gender: 'Femenino'
   },
 ] as const;
 
@@ -351,7 +412,12 @@ export const DEFAULT_VOICE_CONFIG: ThaliosVoiceConfig = {
   engine: 'web-speech',
   voiceUri: '',
   geminiVoice: 'Charon',
-  kokoroVoice: 'em_santa',
+  geminiAccent: 'castellano',
+  geminiArchetype: 'thalios_solaris',
+  geminiEmotion: 'solemne',
+  geminiCadence: 'pausada',
+  geminiCustomPrompt: '',
+  kokoroVoice: 'am_fenrir',
   kokoroDialect: 'castellano',
   rate: 0.95,
   pitch: 0.88,
@@ -485,12 +551,37 @@ class ThaliosVoiceService {
           parsed._engineMigratedV3 = true;
           localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(parsed));
         }
-        if (!parsed.kokoroVoice || !VALID_KOKORO_VOICE_IDS.has(parsed.kokoroVoice as any)) {
-          parsed.kokoroVoice = 'em_santa';
+        
+        // Sanear y migrar voces Kokoro si el usuario tenía las obsoletas
+        if (parsed.kokoroVoice === 'em_santa' || parsed.kokoroVoice === 'am_santa') {
+          parsed.kokoroVoice = 'am_santa';
+        } else if (parsed.kokoroVoice === 'em_alex' || parsed.kokoroVoice === 'am_adam') {
+          parsed.kokoroVoice = 'am_adam';
+        } else if (parsed.kokoroVoice === 'ef_dora' || parsed.kokoroVoice === 'af_aoede') {
+          parsed.kokoroVoice = 'af_aoede';
+        } else if (!VALID_KOKORO_VOICE_IDS.has(parsed.kokoroVoice as any)) {
+          parsed.kokoroVoice = 'am_fenrir';
         }
+
         if (!parsed.kokoroDialect) {
           parsed.kokoroDialect = 'castellano';
         }
+        if (!parsed.geminiAccent) {
+          parsed.geminiAccent = 'castellano';
+        }
+        if (!parsed.geminiArchetype) {
+          parsed.geminiArchetype = 'thalios_solaris';
+        }
+        if (!parsed.geminiEmotion) {
+          parsed.geminiEmotion = 'solemne';
+        }
+        if (!parsed.geminiCadence) {
+          parsed.geminiCadence = 'pausada';
+        }
+        if (parsed.geminiCustomPrompt === undefined) {
+          parsed.geminiCustomPrompt = '';
+        }
+
         return { ...DEFAULT_VOICE_CONFIG, ...parsed };
       }
 
@@ -499,8 +590,13 @@ class ThaliosVoiceService {
       if (rawV1) {
         const parsed = JSON.parse(rawV1);
         parsed.engine = 'web-speech';
-        parsed.kokoroVoice = 'em_santa';
+        parsed.kokoroVoice = 'am_fenrir';
         parsed.kokoroDialect = 'castellano';
+        parsed.geminiAccent = 'castellano';
+        parsed.geminiArchetype = 'thalios_solaris';
+        parsed.geminiEmotion = 'solemne';
+        parsed.geminiCadence = 'pausada';
+        parsed.geminiCustomPrompt = '';
         parsed._engineMigratedV3 = true;
         const migrated = { ...DEFAULT_VOICE_CONFIG, ...parsed };
         localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(migrated));
@@ -886,6 +982,52 @@ class ThaliosVoiceService {
   // ---------------------------------------------------------------------------
   // MOTOR 2: GEMINI MULTIMODAL AUDIO (CLOUD STUDIO)
   // ---------------------------------------------------------------------------
+  public buildGeminiVoicePrompt(textToSpeak: string): string {
+    const accent = this.config.geminiAccent || 'castellano';
+    const archetype = this.config.geminiArchetype || 'thalios_solaris';
+    const emotion = this.config.geminiEmotion || 'solemne';
+    const cadence = this.config.geminiCadence || 'pausada';
+    const customPrompt = this.config.geminiCustomPrompt?.trim();
+
+    // 1. Directiva de acento
+    let accentInstruction = '';
+    if (accent === 'castellano') {
+      accentInstruction = 'IMPORTANTE: Habla en castellano peninsular de España, con pronunciación cuidada y distinción clara entre la "z/c" y la "s" (fonética peninsular), evitando cualquier acento latinoamericano.';
+    } else {
+      accentInstruction = 'IMPORTANTE: Habla en español neutro cinematográfico internacional, sereno, claro y articulado.';
+    }
+
+    // 2. Directiva de matiz emocional
+    let emotionInstruction = '';
+    switch (emotion) {
+      case 'misterioso': emotionInstruction = 'Tono críptico, misterioso, profundo y susurrante.'; break;
+      case 'urgente': emotionInstruction = 'Tono de máxima alerta de puente de mando, perentorio y firme.'; break;
+      case 'intimo': emotionInstruction = 'Tono intimista, reflexivo, sereno y cargado de memoria humana.'; break;
+      case 'cientifico': emotionInstruction = 'Tono frío, puramente analítico, clínico y neutral.'; break;
+      case 'solemne': default: emotionInstruction = 'Tono solemne, oracular, trascendente e imponente.'; break;
+    }
+
+    // 3. Directiva de cadencia
+    let cadenceInstruction = '';
+    switch (cadence) {
+      case 'pausada': cadenceInstruction = 'Cadencia lenta y ceremonial, con pausas meditadas y solemnes.'; break;
+      case 'dinamica': cadenceInstruction = 'Cadencia fluida, enérgica y continua.'; break;
+      case 'normal': default: cadenceInstruction = 'Cadencia natural, equilibrada y articulada.'; break;
+    }
+
+    // 4. Si el arquetipo es personalizado y hay texto
+    if (archetype === 'personalizado' && customPrompt) {
+      return `${customPrompt}\n${accentInstruction}\n\nDi exactamente el siguiente texto sin añadir introducciones ni comentarios adicionales:\n"${textToSpeak}"`;
+    }
+
+    const preset = GEMINI_ARCHETYPE_PRESETS[archetype] || GEMINI_ARCHETYPE_PRESETS.thalios_solaris;
+    const baseRoleplay = (customPrompt && customPrompt.length > 5) ? customPrompt : preset.prompt;
+
+    const fullDirectives = [baseRoleplay, accentInstruction, emotionInstruction, cadenceInstruction].filter(Boolean).join(' ');
+
+    return `${fullDirectives}\n\nDi exactamente el siguiente texto sin añadir introducciones ni comentarios adicionales:\n"${textToSpeak}"`;
+  }
+
   private async speakWithGemini(
     text: string, 
     options: { onEnd?: () => void; onError?: (err: any) => void }
@@ -903,6 +1045,7 @@ class ThaliosVoiceService {
 
     // Limitar texto para TTS de Gemini a un extracto razonable para evitar latencia excesiva
     const truncatedText = text.length > 800 ? text.slice(0, 800) + '...' : text;
+    const prompt = this.buildGeminiVoicePrompt(truncatedText);
 
     const ttsCandidateModels = [
       'gemini-3.8-flash-tts',
@@ -920,7 +1063,7 @@ class ThaliosVoiceService {
       try {
         const response = await client.models.generateContent({
           model: ttsModel,
-          contents: `Pronuncia con solemnidad la siguiente sentencia de Thalios Solaris, con voz pausada y autoritaria: "${truncatedText}"`,
+          contents: prompt,
           config: {
             responseModalities: ["AUDIO"],
             speechConfig: {
@@ -1094,9 +1237,9 @@ class ThaliosVoiceService {
       const tts = await this.getKokoro();
       const cancelId = ++this.queueCancelToken;
 
-      let voiceKey = this.config.kokoroVoice || 'em_santa';
+      let voiceKey = this.config.kokoroVoice || 'am_fenrir';
       if (!VALID_KOKORO_VOICE_IDS.has(voiceKey as any)) {
-        voiceKey = 'em_santa';
+        voiceKey = 'am_fenrir';
       }
 
       const dialect = this.config.kokoroDialect || 'castellano';
@@ -1126,11 +1269,25 @@ class ThaliosVoiceService {
         const ipa = spanishToIpa(chunks[i], dialect);
         if (!ipa || !ipa.trim()) continue;
 
-        const { input_ids } = tts.tokenizer(ipa, { truncation: true });
-        const audio = await tts.generate_from_ids(input_ids, {
-          voice: voiceKey,
-          speed: Math.max(0.7, Math.min(1.3, this.config.rate || 1.0))
-        });
+        let audio: any = null;
+        try {
+          const { input_ids } = tts.tokenizer(ipa, { truncation: true });
+          audio = await tts.generate_from_ids(input_ids, {
+            voice: voiceKey,
+            speed: Math.max(0.7, Math.min(1.3, this.config.rate || 1.0))
+          });
+        } catch (genErr) {
+          console.warn(`[Kokoro-82M] Advertencia con voz ${voiceKey}, reintentando con voz am_fenrir:`, genErr);
+          try {
+            const { input_ids } = tts.tokenizer(ipa, { truncation: true });
+            audio = await tts.generate_from_ids(input_ids, {
+              voice: 'am_fenrir',
+              speed: Math.max(0.7, Math.min(1.3, this.config.rate || 1.0))
+            });
+          } catch (retryErr) {
+            console.error('[Kokoro-82M] Fallo al generar segmento:', retryErr);
+          }
+        }
 
         if (cancelId !== this.queueCancelToken || !this.state.isSpeaking) {
           return;

@@ -10,6 +10,11 @@ import {
   VoiceEngineType, 
   DspFilterMode,
   VALID_KOKORO_VOICES,
+  GEMINI_ARCHETYPE_PRESETS,
+  GeminiArchetype,
+  GeminiEmotion,
+  GeminiCadence,
+  GeminiAccent,
   detectWebGpuSupport 
 } from '../services/thaliosVoiceService';
 import { 
@@ -576,14 +581,14 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-xs font-bold text-white flex items-center gap-1.5">
                               {kv.name}
-                              {(kv as any).isNativeSpanish && (
-                                <span className="text-[8px] px-1.5 py-0.2 rounded bg-amber-950/90 text-amber-300 border border-amber-500/40 font-mono font-bold">
-                                  ★ NATIVO ESPAÑOL
-                                </span>
-                              )}
-                              {kv.id === 'em_santa' && (
+                              {kv.id === 'am_fenrir' && (
                                 <span className="text-[8px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-mono font-bold">
                                   CANÓNICO THALIOS
+                                </span>
+                              )}
+                              {kv.id === 'am_santa' && (
+                                <span className="text-[8px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-500/40 font-mono font-bold">
+                                  ANCIANO SABIO
                                 </span>
                               )}
                             </span>
@@ -760,25 +765,135 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                     </div>
                   </div>
 
-                  {/* Timbre de Voz de Gemini Studio */}
+                  {/* 1. Selector de Acento y Dicción */}
+                  <div className="space-y-2 p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20">
+                    <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
+                      Acento y Dicción Regional
+                    </label>
+                    <p className="text-[11px] text-slate-400 font-sans mb-2">
+                      Fuerza al modelo multimodal a pronunciar con fonética de España o internacional:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdate({ geminiAccent: 'castellano' })}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          config.geminiAccent === 'castellano'
+                            ? 'bg-purple-600/25 border-purple-400 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                            : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-purple-500/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-mono text-xs font-bold text-white flex items-center gap-1.5">
+                            <span>🇪🇸 Castellano de España</span>
+                            <span className="text-[8px] px-1.5 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-500/40 font-bold">
+                              RECOMENDADO
+                            </span>
+                          </span>
+                          {config.geminiAccent === 'castellano' && <Check size={14} className="text-purple-400" />}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-sans leading-tight">
+                          Distinción clara entre 'z/c' y 's' (fonética peninsular sobria sin modulación latina).
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdate({ geminiAccent: 'latam' })}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          config.geminiAccent === 'latam'
+                            ? 'bg-purple-600/25 border-purple-400 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                            : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-purple-500/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-mono text-xs font-bold text-white">
+                            🌎 Español Neutro Internacional
+                          </span>
+                          {config.geminiAccent === 'latam' && <Check size={14} className="text-purple-400" />}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-sans leading-tight">
+                          Seseo cinematográfico internacional neutro y templado.
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Arquetipos Vocales de Estación */}
+                  <div className="space-y-3 p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
+                          Arquetipo de Interpretación Vocal
+                        </label>
+                        <p className="text-[11px] text-slate-400 font-sans">
+                          Configura la edad, género y personalidad dramática que interpretará la I.A.:
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                      {(Object.keys(GEMINI_ARCHETYPE_PRESETS) as GeminiArchetype[]).map((archKey) => {
+                        const preset = GEMINI_ARCHETYPE_PRESETS[archKey];
+                        const isSelected = (config.geminiArchetype || 'thalios_solaris') === archKey;
+                        return (
+                          <button
+                            key={archKey}
+                            type="button"
+                            onClick={() => {
+                              handleUpdate({
+                                geminiArchetype: archKey,
+                                geminiVoice: preset.recommendedVoice,
+                                geminiCustomPrompt: preset.prompt
+                              });
+                            }}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-purple-600/25 border-purple-400 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                                : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-purple-500/30'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-mono text-xs font-bold text-white flex items-center gap-1.5">
+                                  <span>{preset.icon}</span>
+                                  <span>{preset.name}</span>
+                                </span>
+                                {isSelected && <Check size={13} className="text-purple-400" />}
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-sans leading-tight mt-1">
+                                {preset.desc}
+                              </p>
+                            </div>
+                            <span className="text-[9px] font-mono text-purple-400/80 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-500/30 self-start mt-2">
+                              Timbre: {preset.recommendedVoice}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 3. Timbre Base de Síntesis */}
                   <div className="space-y-3 p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20">
                     <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
-                      Timbre de Voz de Gemini Studio
+                      Timbre Base Acústico de Google Gemini
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {[
-                        { id: 'Charon', label: 'Charon', desc: 'Solemne, oracular, autoritaria (Thalios)' },
-                        { id: 'Aoede', label: 'Aoede', desc: 'Mística, etérea, poética' },
-                        { id: 'Fenrir', label: 'Fenrir', desc: 'Profunda, marcial, grave' },
-                        { id: 'Kore', label: 'Kore', desc: 'Clínica, serena, archivística' },
-                        { id: 'Puck', label: 'Puck', desc: 'Ágil, técnica, analítica' }
+                        { id: 'Charon', label: 'Charon', desc: 'Masculino grave, solemne, deidad' },
+                        { id: 'Fenrir', label: 'Fenrir', desc: 'Masculino maduro / anciano / marcial' },
+                        { id: 'Aoede', label: 'Aoede', desc: 'Femenino oracular, poética, mística' },
+                        { id: 'Kore', label: 'Kore', desc: 'Femenino suave, clínico, sereno' },
+                        { id: 'Puck', label: 'Puck', desc: 'Masculino ágil, técnico, analítico' }
                       ].map((gv) => (
                         <button
                           key={gv.id}
+                          type="button"
                           onClick={() => handleUpdate({ geminiVoice: gv.id as any })}
                           className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                             config.geminiVoice === gv.id
-                              ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                              ? 'bg-purple-500/25 border-purple-400 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
                               : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-purple-500/30'
                           }`}
                         >
@@ -787,6 +902,71 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* 4. Matiz Emocional y Cadencia */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20 space-y-2">
+                      <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
+                        Matiz Emocional
+                      </label>
+                      <select
+                        value={config.geminiEmotion || 'solemne'}
+                        onChange={(e) => handleUpdate({ geminiEmotion: e.target.value as GeminiEmotion })}
+                        className="w-full bg-slate-950 border border-purple-500/30 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 focus:outline-none focus:border-purple-400 cursor-pointer"
+                      >
+                        <option value="solemne">Solemne, oracular y trascendente</option>
+                        <option value="misterioso">Misterioso, susurrante y críptico</option>
+                        <option value="urgente">Alerta militar perentoria y tajante</option>
+                        <option value="intimo">Íntimo, reflexivo y nostálgico</option>
+                        <option value="cientifico">Clínico, analítico y neutral</option>
+                      </select>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20 space-y-2">
+                      <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
+                        Cadencia y Ritmo
+                      </label>
+                      <select
+                        value={config.geminiCadence || 'pausada'}
+                        onChange={(e) => handleUpdate({ geminiCadence: e.target.value as GeminiCadence })}
+                        className="w-full bg-slate-950 border border-purple-500/30 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 focus:outline-none focus:border-purple-400 cursor-pointer"
+                      >
+                        <option value="pausada">Pausada y ceremonial (con pausas marcadas)</option>
+                        <option value="normal">Normal, equilibrada y articulada</option>
+                        <option value="dinamica">Dinámica, continua y fluida</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 5. Prompt de Dirección de Voz Personalizable */}
+                  <div className="space-y-2 p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
+                        Prompt de Dirección Escénica y Actuación Vocal
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentArch = config.geminiArchetype || 'thalios_solaris';
+                          const preset = GEMINI_ARCHETYPE_PRESETS[currentArch];
+                          handleUpdate({ geminiCustomPrompt: preset?.prompt || '' });
+                        }}
+                        className="text-[10px] font-mono text-purple-400 hover:text-purple-300 underline cursor-pointer"
+                      >
+                        Restaurar prompt del arquetipo
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-sans mb-1.5 leading-snug">
+                      Instrucción exacta enviada a Gemini para dirigir su edad, tono, acento y emoción. Puedes escribir tus propias directrices:
+                    </p>
+                    <textarea
+                      rows={3}
+                      value={config.geminiCustomPrompt !== undefined ? config.geminiCustomPrompt : (GEMINI_ARCHETYPE_PRESETS[config.geminiArchetype || 'thalios_solaris']?.prompt || '')}
+                      onChange={(e) => handleUpdate({ geminiCustomPrompt: e.target.value })}
+                      placeholder="Escribe aquí las instrucciones de cómo debe actuar la voz de Gemini..."
+                      className="w-full bg-slate-950 border border-purple-500/30 focus:border-purple-400 rounded-xl p-3 text-xs font-mono text-purple-200 placeholder:text-slate-600 focus:outline-none custom-scrollbar leading-relaxed"
+                    />
                   </div>
                 </div>
               )}
