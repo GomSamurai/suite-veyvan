@@ -33,10 +33,14 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true,
+      webSecurity: false, // Permite que la app local file:/// descargue pesos neuronales (HuggingFace) y conecte con Gemini API
       spellcheck: false,
     },
   });
+
+  // Habilitar permisos de audio y APIs para la sesión
+  mainWindow.webContents.session.setPermissionCheckHandler(() => true);
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => callback(true));
 
   // Eliminar barra de menú nativa para apariencia de terminal de datos pura
   Menu.setApplicationMenu(null);
@@ -90,7 +94,8 @@ function createHorocronoWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      webSecurity: false
     }
   });
 
@@ -133,7 +138,8 @@ function createMiniHudWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      webSecurity: false
     }
   });
 

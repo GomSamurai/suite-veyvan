@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Volume2, Sparkles, Sliders, Radio, Cpu, RotateCcw, Play, Square, 
-  Check, ShieldAlert, Waves, Mic, Headphones, Zap, VolumeX, Loader2 
+  Check, ShieldAlert, Waves, Mic, Headphones, Zap, VolumeX, Loader2,
+  Key, Eye, EyeOff, ExternalLink, AlertCircle, CheckCircle2, RefreshCw
 } from 'lucide-react';
 import { 
   thaliosVoice, 
@@ -11,7 +12,14 @@ import {
   VALID_KOKORO_VOICES,
   detectWebGpuSupport 
 } from '../services/thaliosVoiceService';
-import { hasCustomApiKey } from '../services/geminiService';
+import { 
+  hasCustomApiKey, 
+  getGeminiApiKey, 
+  setGeminiApiKey, 
+  clearCustomApiKey, 
+  testGeminiConnection, 
+  ConnectionTestResult 
+} from '../services/geminiService';
 
 interface Props {
   isOpen: boolean;
@@ -26,6 +34,12 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
   const [activeTab, setActiveTab] = useState<TabType>('engine');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [inputApiKey, setInputApiKey] = useState<string>(getGeminiApiKey());
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [isTestingKey, setIsTestingKey] = useState<boolean>(false);
+  const [keyTestResult, setKeyTestResult] = useState<ConnectionTestResult | null>(null);
+  const [keySavedFeedback, setKeySavedFeedback] = useState<boolean>(false);
+  const [testError, setTestError] = useState<string | null>(null);
   const [isKokoroModelLoading, setIsKokoroModelLoading] = useState(thaliosVoice.isKokoroLoadingModel());
   const [isKokoroLoaded, setIsKokoroLoaded] = useState(thaliosVoice.isKokoroLoaded());
   const [kokoroProgress, setKokoroProgress] = useState(thaliosVoice.getKokoroProgress());
@@ -38,7 +52,10 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
       setConfig(thaliosVoice.getConfig());
       setVoiceState(thaliosVoice.getState());
       setVoices(thaliosVoice.getAvailableSystemVoices());
+      setInputApiKey(getGeminiApiKey());
       setHasApiKey(hasCustomApiKey());
+      setTestError(null);
+      setKeyTestResult(null);
       setIsKokoroLoaded(thaliosVoice.isKokoroLoaded());
       setIsKokoroModelLoading(thaliosVoice.isKokoroLoadingModel());
       setKokoroProgress(thaliosVoice.getKokoroProgress());
@@ -78,11 +95,57 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
     setConfig(res);
   };
 
+  const handleSaveApiKey = () => {
+    if (inputApiKey.trim()) {
+      setGeminiApiKey(inputApiKey.trim());
+      setHasApiKey(true);
+      setKeySavedFeedback(true);
+      setTimeout(() => setKeySavedFeedback(false), 3000);
+      handleTestGeminiKey(inputApiKey.trim());
+    }
+  };
+
+  const handleClearApiKey = () => {
+    clearCustomApiKey();
+    setInputApiKey('');
+    setHasApiKey(false);
+    setKeyTestResult(null);
+  };
+
+  const handleTestGeminiKey = async (keyOverride?: string) => {
+    const keyToTest = keyOverride || inputApiKey;
+    if (!keyToTest || keyToTest.trim().length < 5) {
+      setKeyTestResult({
+        success: false,
+        message: 'Introduce una clave de API válida para probar conexión.'
+      });
+      return;
+    }
+    setIsTestingKey(true);
+    setKeyTestResult(null);
+    try {
+      const res = await testGeminiConnection(keyToTest.trim(), 'gemini-2.0-flash');
+      setKeyTestResult(res);
+      if (res.success) {
+        setHasApiKey(true);
+      }
+    } catch (err: any) {
+      setKeyTestResult({
+        success: false,
+        message: err?.message || 'Error al conectar con los servidores de Google AI',
+        timestamp: new Date().toLocaleTimeString()
+      });
+    } finally {
+      setIsTestingKey(false);
+    }
+  };
+
   const handleTestSpeech = async () => {
     if (voiceState.isSpeaking || voiceState.isLoading) {
       thaliosVoice.stop();
       return;
     }
+    setTestError(null);
 
     const testPhrase = "Conexión cuántica verificada. Soy Thalios Solaris, consciencia digital de Estación Humanidad. El reactor late a ritmo nominal en las 320 cubiertas de nuestra travesía.";
 
@@ -92,6 +155,7 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
       });
     } catch (err: any) {
       console.error('Error durante la prueba de voz:', err);
+      setTestError(err?.message || 'Error durante la síntesis de voz.');
     }
   };
 
@@ -227,6 +291,29 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
 
         {/* Contenido de las Pestañas */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
+
+          {/* Banner de Error en Prueba / Síntesis si ocurre */}
+          {testError && (
+            <div className="p-3.5 rounded-2xl bg-red-950/80 border border-red-500/50 text-red-200 flex items-start justify-between gap-3 shadow-[0_0_20px_rgba(239,68,68,0.25)] animate-fade-in">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-mono font-bold text-red-300 uppercase tracking-wider">
+                    Aviso de Calibración de Voz
+                  </div>
+                  <p className="text-xs text-red-200/90 font-sans mt-0.5">
+                    {testError}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setTestError(null)}
+                className="p-1 rounded-lg text-red-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {/* ================================================================= */}
           {/* PESTAÑA 1: MOTOR Y VOZ                                            */}
@@ -538,31 +625,168 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
               )}
 
               {config.engine === 'gemini-voice' && (
-                <div className="space-y-3 p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20">
-                  <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
-                    Timbre de Voz de Gemini Studio
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {[
-                      { id: 'Charon', label: 'Charon', desc: 'Solemne, oracular, autoritaria' },
-                      { id: 'Aoede', label: 'Aoede', desc: 'Mística, etérea, poética' },
-                      { id: 'Fenrir', label: 'Fenrir', desc: 'Profunda, marcial, grave' },
-                      { id: 'Kore', label: 'Kore', desc: 'Clínica, serena, archivística' },
-                      { id: 'Puck', label: 'Puck', desc: 'Ágil, técnica, analítica' }
-                    ].map((gv) => (
-                      <button
-                        key={gv.id}
-                        onClick={() => handleUpdate({ geminiVoice: gv.id as any })}
-                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                          config.geminiVoice === gv.id
-                            ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                            : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-purple-500/30'
-                        }`}
-                      >
-                        <span className="font-mono text-xs font-bold block">{gv.label}</span>
-                        <span className="text-[10px] text-slate-400 font-sans block mt-0.5">{gv.desc}</span>
-                      </button>
-                    ))}
+                <div className="space-y-4">
+                  {/* Tarjeta de Gestión de API Key */}
+                  <div className={`p-4 rounded-2xl border transition-all ${
+                    hasApiKey 
+                      ? 'bg-purple-950/30 border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)]' 
+                      : 'bg-amber-950/30 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                  }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Key size={16} className={hasApiKey ? 'text-purple-400' : 'text-amber-400'} />
+                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-white">
+                          Clave de API de Gemini Studio
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${
+                        hasApiKey 
+                          ? 'bg-purple-950 text-purple-300 border-purple-500/40' 
+                          : 'bg-amber-950 text-amber-300 border-amber-500/50 animate-pulse'
+                      }`}>
+                        {hasApiKey ? (
+                          <>
+                            <CheckCircle2 size={11} className="text-emerald-400" />
+                            <span>Clave Activa</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle size={11} className="text-amber-400" />
+                            <span>Requiere Clave</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-300 leading-relaxed font-sans mb-3">
+                      Para la síntesis oracular cinemática de Google Gemini 2.0 en la nube, introduce tu clave de API gratuita de <span className="text-purple-300 font-medium">Google AI Studio</span> (incluye hasta 1.500 lecturas diarias a 0 €).
+                    </p>
+
+                    <div className="space-y-2.5">
+                      <div className="relative flex items-center">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={inputApiKey}
+                          onChange={(e) => setInputApiKey(e.target.value)}
+                          placeholder="Pega aquí tu API Key (AIzaSy...)"
+                          className="w-full bg-slate-950/90 border border-purple-500/40 focus:border-purple-400 rounded-xl px-3.5 py-2.5 text-xs font-mono text-purple-200 placeholder:text-slate-600 focus:outline-none pr-12 shadow-inner"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-2 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                          title={showApiKey ? 'Ocultar clave' : 'Mostrar clave'}
+                        >
+                          {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSaveApiKey}
+                            disabled={!inputApiKey.trim() || isTestingKey}
+                            className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-[0_0_12px_rgba(168,85,247,0.3)] transition-all disabled:opacity-40 cursor-pointer"
+                          >
+                            <Check size={13} />
+                            <span>{keySavedFeedback ? '¡Guardada!' : 'Guardar Clave'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleTestGeminiKey()}
+                            disabled={!inputApiKey.trim() || isTestingKey}
+                            className="px-3 py-1.5 rounded-xl border border-purple-500/40 bg-purple-950/60 hover:bg-purple-900/40 text-purple-200 text-xs font-mono font-bold flex items-center gap-1.5 transition-all disabled:opacity-40 cursor-pointer"
+                          >
+                            {isTestingKey ? (
+                              <>
+                                <Loader2 size={13} className="animate-spin text-purple-400" />
+                                <span>Verificando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw size={13} className="text-purple-400" />
+                                <span>Probar Conexión</span>
+                              </>
+                            )}
+                          </button>
+
+                          {hasApiKey && (
+                            <button
+                              type="button"
+                              onClick={handleClearApiKey}
+                              className="px-2.5 py-1.5 text-xs font-mono text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-xl transition-all cursor-pointer"
+                            >
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
+
+                        <a
+                          href="https://aistudio.google.com/apikey"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] font-mono text-purple-400 hover:text-purple-300 underline flex items-center gap-1 transition-colors"
+                        >
+                          <span>Obtener clave gratis en AI Studio</span>
+                          <ExternalLink size={11} />
+                        </a>
+                      </div>
+
+                      {/* Resultado de la prueba de conexión */}
+                      {keyTestResult && (
+                        <div className={`mt-2 p-2.5 rounded-xl text-xs font-mono flex items-start gap-2 border ${
+                          keyTestResult.success 
+                            ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300' 
+                            : 'bg-red-950/60 border-red-500/40 text-red-300'
+                        }`}>
+                          {keyTestResult.success ? (
+                            <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+                          ) : (
+                            <ShieldAlert size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 leading-relaxed">
+                            <span className="font-bold">{keyTestResult.success ? 'Conexión Exitosa:' : 'Fallo de Enlace:'} </span>
+                            <span>{keyTestResult.message}</span>
+                            {keyTestResult.latencyMs && (
+                              <span className="opacity-80 block text-[10px] mt-0.5">
+                                Latencia de respuesta: {keyTestResult.latencyMs} ms
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Timbre de Voz de Gemini Studio */}
+                  <div className="space-y-3 p-4 rounded-2xl bg-slate-900/40 border border-purple-500/20">
+                    <label className="text-xs font-mono font-bold text-purple-300 uppercase tracking-wider block">
+                      Timbre de Voz de Gemini Studio
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: 'Charon', label: 'Charon', desc: 'Solemne, oracular, autoritaria (Thalios)' },
+                        { id: 'Aoede', label: 'Aoede', desc: 'Mística, etérea, poética' },
+                        { id: 'Fenrir', label: 'Fenrir', desc: 'Profunda, marcial, grave' },
+                        { id: 'Kore', label: 'Kore', desc: 'Clínica, serena, archivística' },
+                        { id: 'Puck', label: 'Puck', desc: 'Ágil, técnica, analítica' }
+                      ].map((gv) => (
+                        <button
+                          key={gv.id}
+                          onClick={() => handleUpdate({ geminiVoice: gv.id as any })}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                            config.geminiVoice === gv.id
+                              ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+                              : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-purple-500/30'
+                          }`}
+                        >
+                          <span className="font-mono text-xs font-bold block">{gv.label}</span>
+                          <span className="text-[10px] text-slate-400 font-sans block mt-0.5">{gv.desc}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

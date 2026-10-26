@@ -599,7 +599,7 @@ class ThaliosVoiceService {
    * Genera el chime diegético de acople de radio (apertura o cierre de canal)
    */
   public playTransmissionChime(type: 'open' | 'close'): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       if (!this.config.enableTransmissionChimes) {
         resolve();
         return;
@@ -612,10 +612,22 @@ class ThaliosVoiceService {
       }
 
       try {
+        if (ctx.state === 'suspended') {
+          try { await ctx.resume(); } catch {}
+        }
+
         const now = ctx.currentTime;
         const chimeGain = ctx.createGain();
         chimeGain.gain.setValueAtTime(0.0001, now);
-        chimeGain.connect(ctx.destination);
+
+        // Conectar a la cadena DSP para que adopte la reverberación y ecualización de Estación
+        if (this.biquadFilter) {
+          chimeGain.connect(this.biquadFilter);
+        } else {
+          chimeGain.connect(ctx.destination);
+        }
+
+        const volumeMultiplier = Math.max(0.25, Math.min(1.0, this.config.volume)) * 0.40;
 
         if (type === 'open') {
           // Secuencia armónica ascendente: 659Hz (E5) -> 880Hz (A5)
@@ -625,12 +637,12 @@ class ThaliosVoiceService {
           osc1.frequency.setValueAtTime(880.00, now + 0.06);
 
           chimeGain.gain.setValueAtTime(0.0001, now);
-          chimeGain.gain.linearRampToValueAtTime(this.config.volume * 0.18, now + 0.02);
-          chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+          chimeGain.gain.linearRampToValueAtTime(volumeMultiplier, now + 0.02);
+          chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
 
           osc1.connect(chimeGain);
           osc1.start(now);
-          osc1.stop(now + 0.16);
+          osc1.stop(now + 0.17);
 
           setTimeout(resolve, 150);
         } else {
@@ -641,7 +653,7 @@ class ThaliosVoiceService {
           osc1.frequency.setValueAtTime(440.00, now + 0.05);
 
           chimeGain.gain.setValueAtTime(0.0001, now);
-          chimeGain.gain.linearRampToValueAtTime(this.config.volume * 0.15, now + 0.02);
+          chimeGain.gain.linearRampToValueAtTime(volumeMultiplier * 0.9, now + 0.02);
           chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
           osc1.connect(chimeGain);
@@ -659,12 +671,14 @@ class ThaliosVoiceService {
   /**
    * Activa/desactiva el ruido sutil de portadora estelar (intercom static)
    */
-  private setIntercomStatic(active: boolean): void {
-    if (!this.config.enableIntercomStatic || !this.audioCtx) return;
+  private async setIntercomStatic(active: boolean): Promise<void> {
+    if (!this.config.enableIntercomStatic) return;
+    const ctx = this.initAudioContext();
+    if (!ctx) return;
 
     if (!active) {
-      if (this.staticGainNode && this.audioCtx) {
-        this.staticGainNode.gain.setTargetAtTime(0, this.audioCtx.currentTime, 0.08);
+      if (this.staticGainNode && ctx) {
+        this.staticGainNode.gain.setTargetAtTime(0, ctx.currentTime, 0.08);
       }
       setTimeout(() => {
         if (this.staticSource) {
@@ -676,8 +690,12 @@ class ThaliosVoiceService {
     }
 
     try {
-      const bufferSize = this.audioCtx.sampleRate * 2;
-      const noiseBuffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+      if (ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch {}
+      }
+
+      const bufferSize = ctx.sampleRate * 2;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const output = noiseBuffer.getChannelData(0);
       let b0 = 0, b1 = 0, b2 = 0;
       for (let i = 0; i < bufferSize; i++) {
@@ -688,22 +706,29 @@ class ThaliosVoiceService {
         output[i] = (b0 + b1 + b2) * 0.04;
       }
 
-      this.staticSource = this.audioCtx.createBufferSource();
+      this.staticSource = ctx.createBufferSource();
       this.staticSource.buffer = noiseBuffer;
       this.staticSource.loop = true;
 
-      const filter = this.audioCtx.createBiquadFilter();
+      const filter = ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.value = 1200;
-      filter.Q.value = 1.0;
+      filter.frequency.value = 1400;
+      filter.Q.value = 1.2;
 
-      this.staticGainNode = this.audioCtx.createGain();
-      this.staticGainNode.gain.setValueAtTime(0.0001, this.audioCtx.currentTime);
-      this.staticGainNode.gain.linearRampToValueAtTime(this.config.volume * 0.025, this.audioCtx.currentTime + 0.1);
+      this.staticGainNode = ctx.createGain();
+      const intensity = this.config.dspIntensity || 0.5;
+      const targetGain = Math.max(0.015, this.config.volume * 0.07 * intensity);
+      this.staticGainNode.gain.setValueAtTime(0.0001, ctx.currentTime);
+      this.staticGainNode.gain.linearRampToValueAtTime(targetGain, ctx.currentTime + 0.12);
 
       this.staticSource.connect(filter);
       filter.connect(this.staticGainNode);
-      this.staticGainNode.connect(this.audioCtx.destination);
+
+      if (this.biquadFilter) {
+        this.staticGainNode.connect(this.biquadFilter);
+      } else {
+        this.staticGainNode.connect(ctx.destination);
+      }
 
       this.staticSource.start();
     } catch {
@@ -1135,11 +1160,15 @@ class ThaliosVoiceService {
     sampleRate: number = 24000,
     options: { onEnd?: () => void; onError?: (err: any) => void }
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const ctx = this.initAudioContext();
       if (!ctx || !this.biquadFilter) {
         reject(new Error('AudioContext no inicializado'));
         return;
+      }
+
+      if (ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch {}
       }
 
       try {
@@ -1237,7 +1266,7 @@ class ThaliosVoiceService {
     mimeType: string,
     options: { onEnd?: () => void; onError?: (err: any) => void }
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const audioUrl = `data:${mimeType};base64,${base64}`;
       const audio = new Audio(audioUrl);
       this.currentAudioElement = audio;
@@ -1246,12 +1275,17 @@ class ThaliosVoiceService {
       audio.playbackRate = this.config.rate;
 
       const ctx = this.initAudioContext();
-      if (ctx && this.biquadFilter) {
-        try {
-          this.currentSourceNode = ctx.createMediaElementSource(audio);
-          this.currentSourceNode.connect(this.biquadFilter);
-        } catch {
-          // Si ya está conectado o hay restricción, audio.play funcionará normalmente
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          try { await ctx.resume(); } catch {}
+        }
+        if (this.biquadFilter) {
+          try {
+            this.currentSourceNode = ctx.createMediaElementSource(audio);
+            this.currentSourceNode.connect(this.biquadFilter);
+          } catch {
+            // Si ya está conectado o hay restricción, audio.play funcionará normalmente
+          }
         }
       }
 
