@@ -8,7 +8,8 @@ import {
   ThaliosVoiceConfig, 
   VoiceEngineType, 
   DspFilterMode,
-  VALID_KOKORO_VOICES 
+  VALID_KOKORO_VOICES,
+  detectWebGpuSupport 
 } from '../services/thaliosVoiceService';
 import { hasCustomApiKey } from '../services/geminiService';
 
@@ -30,6 +31,7 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
   const [kokoroProgress, setKokoroProgress] = useState(thaliosVoice.getKokoroProgress());
   const [isPreloading, setIsPreloading] = useState(false);
   const [preloadError, setPreloadError] = useState<string | null>(null);
+  const [gpuHardwareInfo, setGpuHardwareInfo] = useState<{ isAvailable: boolean; description: string; hasFp16: boolean } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -40,6 +42,10 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
       setIsKokoroLoaded(thaliosVoice.isKokoroLoaded());
       setIsKokoroModelLoading(thaliosVoice.isKokoroLoadingModel());
       setKokoroProgress(thaliosVoice.getKokoroProgress());
+
+      detectWebGpuSupport().then(info => {
+        setGpuHardwareInfo(info);
+      });
 
       const unsub = thaliosVoice.subscribe((s) => {
         setVoiceState(s);
@@ -263,7 +269,7 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                     </span>
                   </div>
 
-                  {/* Opción 2: Kokoro-82M ONNX (LOCAL NEURAL) */}
+                  {/* Opción 2: Kokoro-82M ONNX (LOCAL NEURAL CON ACELERACIÓN GPU) */}
                   <div
                     onClick={() => handleUpdate({ engine: 'kokoro-onnx' })}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
@@ -277,17 +283,17 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                         <span className="font-mono text-xs font-bold uppercase text-emerald-400 flex items-center gap-1.5">
                           <span>Kokoro-82M</span>
                           <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">
-                            ONNX Neural
+                            {gpuHardwareInfo?.isAvailable ? '⚡ GPU WebGPU' : 'ONNX Neural'}
                           </span>
                         </span>
                         {config.engine === 'kokoro-onnx' && <Check size={14} className="text-emerald-400" />}
                       </div>
                       <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                        Inferencia neuronal 100% local en tu navegador. Timbre oracular de estudio (Santa Castellano / Alex / Dora). Requiere tiempo de cómputo en CPU.
+                        Inferencia neuronal local asistida por GPU (WebGPU / DirectX 12). Timbre oracular de estudio (Santa Castellano / Alex / Dora).
                       </p>
                     </div>
                     <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-500/40 mt-3 inline-block w-fit font-bold shadow-[0_0_8px_rgba(16,185,129,0.25)]">
-                      Calidad Estudio / Local
+                      {gpuHardwareInfo?.isAvailable ? '★ Aceleración por GPU Activa' : 'Calidad Estudio / Local'}
                     </span>
                   </div>
 
@@ -319,6 +325,35 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
               {/* Selector de Voz Específica según el motor activo */}
               {config.engine === 'kokoro-onnx' && (
                 <div className="space-y-4 p-4 rounded-2xl bg-slate-900/50 border border-emerald-500/25">
+                  {/* Banner de Diagnóstico de Hardware GPU */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-xl bg-slate-950/90 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.12)]">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-400 flex-shrink-0">
+                        <Cpu size={18} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-mono font-bold text-white flex items-center gap-2">
+                          <span>Acelerador Hardware:</span>
+                          <span className="text-emerald-300">
+                            {gpuHardwareInfo?.isAvailable 
+                              ? gpuHardwareInfo.description 
+                              : 'CPU WebAssembly'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+                          {gpuHardwareInfo?.isAvailable
+                            ? `Inferencia en núcleos de cómputo de tarjeta gráfica física con WebGPU (${gpuHardwareInfo.hasFp16 ? 'FP16' : 'FP32'}). Generación ultra-rápida.`
+                            : 'Navegador sin acceso directo a WebGPU; el modelo se ejecutará en CPU (WASM) como respaldo seguro.'}
+                        </p>
+                      </div>
+                    </div>
+                    {gpuHardwareInfo?.isAvailable && (
+                      <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-400/50 uppercase tracking-wider font-bold flex-shrink-0">
+                        GPU Activa
+                      </span>
+                    )}
+                  </div>
+
                   {/* Banner de Estado del Modelo Neuronal Kokoro-82M */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-xl bg-slate-950/80 border border-emerald-500/20">
                     <div className="flex items-center gap-3">
@@ -339,14 +374,18 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                               ? 'bg-amber-950 text-amber-300 border-amber-500/40' 
                               : 'bg-slate-800 text-slate-300 border-slate-600'
                           }`}>
-                            {isKokoroLoaded ? 'En Memoria Local' : isKokoroModelLoading ? `Descargando (${kokoroProgress}%)` : 'No descargado'}
+                            {isKokoroLoaded 
+                              ? (gpuHardwareInfo?.isAvailable ? 'Listo en GPU (VRAM)' : 'Listo en CPU') 
+                              : isKokoroModelLoading 
+                              ? `Descargando (${kokoroProgress}%)` 
+                              : 'No descargado'}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400 font-sans mt-0.5">
                           {isKokoroLoaded 
-                            ? 'Pesos cuantizados listos en memoria. Síntesis instantánea y 100% offline.'
+                            ? 'Pesos neuronales cargados y listos. Síntesis continua sin esperas y 100% offline.'
                             : isKokoroModelLoading
-                            ? `Cargando pesos neuronales (~86MB)... ${voiceState.currentTitle || ''}`
+                            ? `Cargando pesos neuronales... ${voiceState.currentTitle || ''}`
                             : 'Descarga única automática de ~86MB al pulsar "Probar Voz" o con el botón lateral.'}
                         </p>
                       </div>

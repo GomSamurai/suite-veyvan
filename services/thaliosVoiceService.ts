@@ -367,6 +367,44 @@ export const DEFAULT_VOICE_CONFIG: ThaliosVoiceConfig = {
   enableSpacebarPause: true,
 };
 
+// Detección y caché de soporte de WebGPU para aceleración por hardware físico (NVIDIA RTX / D3D12 / Vulkan)
+let cachedWebGpuSupport: { isAvailable: boolean; description: string; hasFp16: boolean } | null = null;
+
+export async function detectWebGpuSupport(): Promise<{ isAvailable: boolean; description: string; hasFp16: boolean }> {
+  if (cachedWebGpuSupport) return cachedWebGpuSupport;
+  if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
+    cachedWebGpuSupport = { 
+      isAvailable: false, 
+      description: 'Navegador sin soporte WebGPU (se utilizará CPU WASM)', 
+      hasFp16: false 
+    };
+    return cachedWebGpuSupport;
+  }
+  try {
+    const adapter = await (navigator as any).gpu?.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) {
+      cachedWebGpuSupport = { 
+        isAvailable: false, 
+        description: 'No se obtuvo adaptador GPU de alto rendimiento', 
+        hasFp16: false 
+      };
+      return cachedWebGpuSupport;
+    }
+    const info = (await adapter.requestAdapterInfo?.()) || adapter.info || {};
+    const description = info.description || info.device || info.vendor || 'GPU Compatible WebGPU (DirectX 12 / Vulkan)';
+    const hasFp16 = !!adapter.features?.has('shader-f16');
+    cachedWebGpuSupport = { isAvailable: true, description, hasFp16 };
+    return cachedWebGpuSupport;
+  } catch (err: any) {
+    cachedWebGpuSupport = { 
+      isAvailable: false, 
+      description: err?.message || 'Error de sondeo WebGPU', 
+      hasFp16: false 
+    };
+    return cachedWebGpuSupport;
+  }
+}
+
 class ThaliosVoiceService {
   private config: ThaliosVoiceConfig;
   private state: ThaliosVoiceState;
@@ -880,11 +918,13 @@ class ThaliosVoiceService {
   }
 
   // ---------------------------------------------------------------------------
-  // MOTOR 3: KOKORO-82M ONNX (LOCAL NEURONAL REAL)
+  // MOTOR 3: KOKORO-82M ONNX (LOCAL NEURONAL REAL CON ACELERACIÓN GPU)
   // ---------------------------------------------------------------------------
   private kokoroInstance: any = null;
   private isKokoroLoading: boolean = false;
   private kokoroDownloadProgress: number = 0;
+  private kokoroDevice: 'webgpu' | 'wasm' = 'wasm';
+  private kokoroGpuName: string = '';
 
   public getKokoroProgress(): number {
     return this.kokoroDownloadProgress;
@@ -896,6 +936,14 @@ class ThaliosVoiceService {
 
   public isKokoroLoadingModel(): boolean {
     return this.isKokoroLoading;
+  }
+
+  public getKokoroDevice(): 'webgpu' | 'wasm' {
+    return this.kokoroDevice;
+  }
+
+  public getKokoroGpuName(): string {
+    return this.kokoroGpuName;
   }
 
   public async preloadKokoro(): Promise<void> {
@@ -915,18 +963,62 @@ class ThaliosVoiceService {
     this.kokoroDownloadProgress = 0;
     try {
       const { KokoroTTS } = await import('kokoro-js');
-      this.kokoroInstance = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-        dtype: 'q8',
-        device: 'wasm',
-        progress_callback: (info: any) => {
-          if (info && typeof info.progress === 'number') {
-            const pct = Math.round(info.progress * 100);
-            this.kokoroDownloadProgress = pct;
-            this.state.currentTitle = `Descargando modelo Kokoro-82M (${pct}%)...`;
-            this.notifyListeners();
-          }
+      let loadedInstance: any = null;
+
+      // 1. Intentar primero aceleración por hardware WebGPU en la GPU física (NVIDIA RTX / D3D12 / Vulkan)
+      const gpuInfo = await detectWebGpuSupport();
+      if (gpuInfo.isAvailable) {
+        try {
+          const targetDtype = gpuInfo.hasFp16 ? 'fp16' : 'fp32';
+          this.kokoroGpuName = gpuInfo.description;
+          this.state.currentTitle = `Inicializando Kokoro en GPU (${this.kokoroGpuName.slice(0, 24)})...`;
+          this.notifyListeners();
+          console.log(`[Thalios Voice] Inicializando Kokoro-82M en GPU con WebGPU [${targetDtype}] en ${this.kokoroGpuName}...`);
+
+          loadedInstance = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+            dtype: targetDtype,
+            device: 'webgpu',
+            progress_callback: (info: any) => {
+              if (info && typeof info.progress === 'number') {
+                const pct = Math.round(info.progress * 100);
+                this.kokoroDownloadProgress = pct;
+                this.state.currentTitle = `Descargando pesos Kokoro GPU (${pct}%)...`;
+                this.notifyListeners();
+              }
+            }
+          });
+          this.kokoroDevice = 'webgpu';
+          console.log('[Thalios Voice] ¡Kokoro-82M cargado con éxito en GPU mediante WebGPU! Aceleración por hardware activa.');
+        } catch (gpuError) {
+          console.warn('[Thalios Voice] Fallo al iniciar en WebGPU, recurriendo a CPU WASM:', gpuError);
+          loadedInstance = null;
         }
-      });
+      }
+
+      // 2. Si WebGPU no está disponible o falla, recurrir de forma transparente a CPU WASM
+      if (!loadedInstance) {
+        this.kokoroDevice = 'wasm';
+        this.kokoroGpuName = '';
+        this.state.currentTitle = `Cargando Kokoro-82M en CPU...`;
+        this.notifyListeners();
+        console.log('[Thalios Voice] Cargando Kokoro-82M en modo CPU (WASM q8)...');
+
+        loadedInstance = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+          dtype: 'q8',
+          device: 'wasm',
+          progress_callback: (info: any) => {
+            if (info && typeof info.progress === 'number') {
+              const pct = Math.round(info.progress * 100);
+              this.kokoroDownloadProgress = pct;
+              this.state.currentTitle = `Descargando modelo Kokoro CPU (${pct}%)...`;
+              this.notifyListeners();
+            }
+          }
+        });
+        console.log('[Thalios Voice] Kokoro-82M cargado en CPU (WASM).');
+      }
+
+      this.kokoroInstance = loadedInstance;
       this.isKokoroLoading = false;
       this.kokoroDownloadProgress = 100;
       this.notifyListeners();
