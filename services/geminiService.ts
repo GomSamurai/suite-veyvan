@@ -12,26 +12,26 @@ export const CURATED_MODELS: ModelOption[] = [
   {
     id: 'gemini-3.8-flash',
     label: 'Gemini 3.8 Flash',
-    description: 'Estándar 2026: Máxima rapidez, erudición Veyvān y soporte completo',
+    description: 'Estándar Oficial: Máxima rapidez, erudición Veyvān y soporte multicanal',
     badge: 'Recomendado'
-  },
-  {
-    id: 'gemini-3-flash',
-    label: 'Gemini 3.0 Flash',
-    description: 'Versión equilibrada de alta velocidad',
-    badge: 'Estable'
-  },
-  {
-    id: 'gemini-2.5-flash-preview',
-    label: 'Gemini 2.5 Flash Preview',
-    description: 'Edición preliminar 2.5',
-    badge: 'Preview'
   },
   {
     id: 'gemini-flash-latest',
     label: 'Gemini Flash Latest',
     description: 'Canal dinámico siempre actualizado',
     badge: 'Auto'
+  },
+  {
+    id: 'gemini-3.8-flash-tts',
+    label: 'Gemini 3.8 Flash TTS',
+    description: 'Modelo neuronal cinemático especializado en síntesis de voz oracular',
+    badge: 'Voz HD'
+  },
+  {
+    id: 'gemini-3-flash-preview',
+    label: 'Gemini 3.0 Flash Preview',
+    description: 'Versión preliminar equilibrada',
+    badge: 'Preview'
   }
 ];
 
@@ -72,7 +72,9 @@ export const clearCustomApiKey = (): void => {
 export const getGeminiModel = (): string => {
   if (typeof window !== 'undefined') {
     const local = localStorage.getItem('gemini_model');
-    if (local && local.trim().length > 2) return local.trim();
+    if (local && local.trim().length > 2 && local.trim() !== 'gemini-2.0-flash') {
+      return local.trim();
+    }
   }
   return 'gemini-3.8-flash';
 };
@@ -105,57 +107,83 @@ export const testGeminiConnection = async (
   modelToTest?: string
 ): Promise<ConnectionTestResult> => {
   const key = apiKeyToTest !== undefined ? apiKeyToTest.trim() : getGeminiApiKey();
-  const model = modelToTest?.trim() || getGeminiModel();
 
   if (!key || key.length < 10) {
     return {
       success: false,
       message: 'La clave API proporcionada está vacía o es demasiado corta (mínimo 10 caracteres).',
-      modelUsed: model,
       timestamp: new Date().toLocaleTimeString()
     };
   }
+
+  const client = new GoogleGenAI({ apiKey: key });
+  const cleanModelToTest = modelToTest && modelToTest !== 'gemini-2.0-flash' ? modelToTest : undefined;
+  const candidates = Array.from(new Set([
+    cleanModelToTest,
+    getGeminiModel(),
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.8-flash-tts',
+    'gemini-2.5-flash-preview-tts',
+    'gemini-1.5-flash'
+  ].filter(Boolean))) as string[];
 
   const startTime = Date.now();
-  try {
-    const client = new GoogleGenAI({ apiKey: key });
-    const response = await client.models.generateContent({
-      model: model,
-      contents: 'Ping ceremonial Veyvān: Responde brevemente con tres palabras sagradas del Transversal: "Koa · Vaes · Eli" y nada más.',
-    });
-    const latencyMs = Date.now() - startTime;
-    const text = response.text?.trim() || 'Koa · Vaes · Eli';
+  let lastError: any = null;
 
-    return {
-      success: true,
-      message: `¡Enlace cuántico verificado! El Oráculo respondió con éxito en ${latencyMs}ms.`,
-      latencyMs,
-      modelUsed: model,
-      timestamp: new Date().toLocaleTimeString(),
-      oracleSample: text
-    };
-  } catch (err: any) {
-    const latencyMs = Date.now() - startTime;
-    let errorDetail = err.message || 'Error desconocido';
+  for (const model of candidates) {
+    try {
+      const response = await client.models.generateContent({
+        model: model,
+        contents: 'Ping ceremonial Veyvān: Responde brevemente con tres palabras sagradas del Transversal: "Koa · Vaes · Eli" y nada más.',
+      });
+      const latencyMs = Date.now() - startTime;
+      const text = response.text?.trim() || 'Koa · Vaes · Eli';
 
-    if (errorDetail.includes('404') || errorDetail.includes('not found')) {
-      errorDetail = `El modelo '${model}' no se encuentra disponible para esta clave en la versión actual de la API. Te recomendamos seleccionar 'gemini-3.8-flash'.`;
-    } else if (errorDetail.includes('400') || errorDetail.includes('API_KEY_INVALID') || errorDetail.includes('key not valid')) {
-      errorDetail = 'La clave API de Gemini no es válida o no tiene permisos habilitados en Google AI Studio.';
-    } else if (errorDetail.includes('429') || errorDetail.includes('RESOURCE_EXHAUSTED')) {
-      errorDetail = 'Límite de cuota excedido (Rate Limit). Espera unos instantes o revisa tu facturación.';
-    } else if (errorDetail.includes('Failed to fetch') || errorDetail.includes('NetworkError')) {
-      errorDetail = 'Fallo de red al conectar con los servidores de Google Generative AI. Comprueba tu conexión a internet.';
+      // Guardar el modelo verificado para todas las llamadas futuras
+      setGeminiModel(model);
+
+      return {
+        success: true,
+        message: `¡Enlace cuántico verificado! Conectado con '${model}' en ${latencyMs}ms.`,
+        latencyMs,
+        modelUsed: model,
+        timestamp: new Date().toLocaleTimeString(),
+        oracleSample: text
+      };
+    } catch (err: any) {
+      lastError = err;
+      const isNotFound = err?.message?.includes('404') || 
+                         err?.message?.includes('not found') || 
+                         err?.message?.includes('NOT_FOUND') ||
+                         err?.message?.includes('no longer available');
+      if (isNotFound) {
+        continue;
+      }
+      break;
     }
-
-    return {
-      success: false,
-      message: errorDetail,
-      latencyMs,
-      modelUsed: model,
-      timestamp: new Date().toLocaleTimeString()
-    };
   }
+
+  const latencyMs = Date.now() - startTime;
+  let errorDetail = lastError?.message || 'Error desconocido';
+
+  if (errorDetail.includes('404') || errorDetail.includes('not found') || errorDetail.includes('NOT_FOUND') || errorDetail.includes('no longer available')) {
+    errorDetail = 'Ninguno de los modelos estándar de Gemini respondió para esta clave. Comprueba en Google AI Studio qué modelos están activos.';
+  } else if (errorDetail.includes('400') || errorDetail.includes('API_KEY_INVALID') || errorDetail.includes('key not valid')) {
+    errorDetail = 'La clave API de Gemini no es válida o no tiene permisos habilitados en Google AI Studio.';
+  } else if (errorDetail.includes('429') || errorDetail.includes('RESOURCE_EXHAUSTED')) {
+    errorDetail = 'Límite de cuota excedido (Rate Limit). Espera unos instantes o revisa tu facturación.';
+  } else if (errorDetail.includes('Failed to fetch') || errorDetail.includes('NetworkError')) {
+    errorDetail = 'Fallo de red al conectar con los servidores de Google Generative AI. Comprueba tu conexión a internet.';
+  }
+
+  return {
+    success: false,
+    message: errorDetail,
+    latencyMs,
+    timestamp: new Date().toLocaleTimeString()
+  };
 };
 
 export interface AnalysisResult {

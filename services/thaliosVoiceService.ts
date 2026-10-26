@@ -904,38 +904,64 @@ class ThaliosVoiceService {
     // Limitar texto para TTS de Gemini a un extracto razonable para evitar latencia excesiva
     const truncatedText = text.length > 800 ? text.slice(0, 800) + '...' : text;
 
-    const response = await client.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: `Pronuncia con solemnidad la siguiente sentencia de Thalios Solaris, con voz pausada y autoritaria: "${truncatedText}"`,
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: this.config.geminiVoice || 'Charon'
+    const ttsCandidateModels = [
+      'gemini-3.8-flash-tts',
+      'gemini-2.5-flash-preview-tts',
+      'gemini-3.1-flash-tts-preview',
+      'gemini-3.8-flash-lite-tts',
+      'gemini-3.8-flash'
+    ];
+
+    let base64Audio = '';
+    let mimeType = 'audio/wav';
+    let lastError: any = null;
+
+    for (const ttsModel of ttsCandidateModels) {
+      try {
+        const response = await client.models.generateContent({
+          model: ttsModel,
+          contents: `Pronuncia con solemnidad la siguiente sentencia de Thalios Solaris, con voz pausada y autoritaria: "${truncatedText}"`,
+          config: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: {
+                  voiceName: this.config.geminiVoice || 'Charon'
+                }
+              }
+            }
+          } as any
+        });
+
+        const candidates = response.candidates;
+        if (candidates && candidates[0]?.content?.parts) {
+          for (const part of candidates[0].content.parts) {
+            if ((part as any).inlineData && (part as any).inlineData.mimeType?.startsWith('audio/')) {
+              base64Audio = (part as any).inlineData.data;
+              mimeType = (part as any).inlineData.mimeType;
+              break;
             }
           }
         }
-      } as any
-    });
 
-    // Buscar candidato con audio en partes
-    const candidates = response.candidates;
-    let base64Audio = '';
-    let mimeType = 'audio/wav';
-
-    if (candidates && candidates[0]?.content?.parts) {
-      for (const part of candidates[0].content.parts) {
-        if ((part as any).inlineData && (part as any).inlineData.mimeType?.startsWith('audio/')) {
-          base64Audio = (part as any).inlineData.data;
-          mimeType = (part as any).inlineData.mimeType;
+        if (base64Audio) {
           break;
         }
+      } catch (err: any) {
+        lastError = err;
+        const isNotFound = err?.message?.includes('404') || 
+                           err?.message?.includes('not found') || 
+                           err?.message?.includes('NOT_FOUND') ||
+                           err?.message?.includes('no longer available');
+        if (isNotFound) {
+          continue;
+        }
+        break;
       }
     }
 
     if (!base64Audio) {
-      throw new Error('Gemini no devolvió stream de audio. Recurriendo a síntesis local.');
+      throw new Error(lastError?.message || 'Gemini no devolvió stream de audio. Recurriendo a síntesis local.');
     }
 
     // Reproducir a través del motor Web Audio con filtro DSP
@@ -1266,6 +1292,28 @@ class ThaliosVoiceService {
     mimeType: string,
     options: { onEnd?: () => void; onError?: (err: any) => void }
   ): Promise<void> {
+    // Si viene en PCM crudo (como audio/L16 o codec=pcm), decodificar a Float32Array
+    if (mimeType.includes('pcm') || mimeType.includes('L16')) {
+      try {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const int16 = new Int16Array(bytes.buffer);
+        const float32 = new Float32Array(int16.length);
+        for (let i = 0; i < int16.length; i++) {
+          float32[i] = int16[i] / 32768.0;
+        }
+        const rateMatch = mimeType.match(/rate=(\d+)/);
+        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+        return this.playAudioBuffer(float32, sampleRate, options);
+      } catch (pcmErr) {
+        console.warn('Error decodificando PCM en bruto, intentando fallback de audio:', pcmErr);
+      }
+    }
+
     return new Promise(async (resolve, reject) => {
       const audioUrl = `data:${mimeType};base64,${base64}`;
       const audio = new Audio(audioUrl);

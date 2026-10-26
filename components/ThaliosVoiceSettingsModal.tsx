@@ -124,7 +124,7 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
     setIsTestingKey(true);
     setKeyTestResult(null);
     try {
-      const res = await testGeminiConnection(keyToTest.trim(), 'gemini-2.0-flash');
+      const res = await testGeminiConnection(keyToTest.trim());
       setKeyTestResult(res);
       if (res.success) {
         setHasApiKey(true);
@@ -659,7 +659,7 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                     </div>
 
                     <p className="text-[11px] text-slate-300 leading-relaxed font-sans mb-3">
-                      Para la síntesis oracular cinemática de Google Gemini 2.0 en la nube, introduce tu clave de API gratuita de <span className="text-purple-300 font-medium">Google AI Studio</span> (incluye hasta 1.500 lecturas diarias a 0 €).
+                      Para la síntesis oracular cinemática de Google Gemini en la nube, introduce tu clave de API gratuita de <span className="text-purple-300 font-medium">Google AI Studio</span> (incluye hasta 1.500 lecturas diarias a 0 €).
                     </p>
 
                     <div className="space-y-2.5">
