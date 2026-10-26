@@ -113,83 +113,80 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-300 dark:text-slate-300 light:text-slate-800 font-sans selection:bg-cyan-500/30 selection:text-cyan-100 overflow-hidden flex flex-col">
-      <div className="animate-fade-in">
-        <Navigation 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          onExport={handleExport}
-          onImport={handleImport}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
-        />
-      </div>
+    <div className="h-screen w-screen bg-transparent text-slate-300 dark:text-slate-300 light:text-slate-800 font-sans selection:bg-cyan-500/30 selection:text-cyan-100 overflow-hidden flex flex-row">
+      {/* Barra Lateral Dinámica y Coherente */}
+      <Navigation 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        onExport={handleExport}
+        onImport={handleImport}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
+      />
       
-      {/* 
-        Main content wrapper with overflow-auto. 
-        Fluid responsive width utilizing screen space gracefully up to 1920px.
-        Using display:none preserves component state when switching tabs.
-      */}
-      <main className="flex-1 overflow-y-auto w-full max-w-[99vw] 2xl:max-w-[1920px] mx-auto py-4 sm:py-6 px-2 sm:px-6 relative custom-scrollbar z-10">
-        <div className={activeTab === 'glossary' ? 'block animate-fade-in' : 'hidden'}>
-          <GlossaryList terms={terms} onUpdateTerm={updateTerm} />
-        </div>
+      {/* Columna Principal de Trabajo & Vistas */}
+      <div className="flex-1 h-screen flex flex-col min-w-0 overflow-hidden relative">
+        <main className="flex-1 overflow-y-auto w-full py-4 sm:py-6 px-3 sm:px-8 relative custom-scrollbar z-10">
+          <div className={activeTab === 'glossary' ? 'block animate-fade-in' : 'hidden'}>
+            <GlossaryList terms={terms} onUpdateTerm={updateTerm} />
+          </div>
 
-        <div className={activeTab === 'translator' ? 'block animate-fade-in' : 'hidden'}>
-          <Translator />
-        </div>
-        
-        <div className={activeTab === 'taelim' ? 'block h-full animate-fade-in' : 'hidden'}>
-           <Taelim 
-             terms={terms} 
-             customPresets={presets}
-             onSavePreset={handleSavePreset}
-             onDeletePreset={handleDeletePreset}
-             onImportSession={handleImport}
-           />
-        </div>
+          <div className={activeTab === 'translator' ? 'block animate-fade-in' : 'hidden'}>
+            <Translator />
+          </div>
+          
+          <div className={activeTab === 'taelim' ? 'block h-full animate-fade-in' : 'hidden'}>
+             <Taelim 
+               terms={terms} 
+               customPresets={presets}
+               onSavePreset={handleSavePreset}
+               onDeletePreset={handleDeletePreset}
+               onImportSession={handleImport}
+             />
+          </div>
 
-        <div className={activeTab === 'calligram' ? 'block animate-fade-in' : 'hidden'}>
-          {activeTab === 'calligram' && (
-            <SafeBoundary name="Caligramas (Tael'vohn)">
-              <CalligramStudio />
-            </SafeBoundary>
-          )}
-        </div>
+          <div className={activeTab === 'calligram' ? 'block animate-fade-in' : 'hidden'}>
+            {activeTab === 'calligram' && (
+              <SafeBoundary name="Caligramas (Tael'vohn)">
+                <CalligramStudio />
+              </SafeBoundary>
+            )}
+          </div>
 
-        <div className={activeTab === 'lore' ? 'block animate-fade-in' : 'hidden'}>
-          {activeTab === 'lore' && (
-            <SafeBoundary name="Atlas de Estación Humanidad (Lore)">
-              <LoreAtlas />
-            </SafeBoundary>
-          )}
-        </div>
+          <div className={activeTab === 'lore' ? 'block animate-fade-in' : 'hidden'}>
+            {activeTab === 'lore' && (
+              <SafeBoundary name="Atlas de Estación Humanidad (Lore)">
+                <LoreAtlas />
+              </SafeBoundary>
+            )}
+          </div>
 
-        <div className={activeTab === 'codex' ? 'block animate-fade-in' : 'hidden'}>
-          {activeTab === 'codex' && <CodexComposer terms={terms} onTraceInTaelim={traceInTaelim} />}
-        </div>
+          <div className={activeTab === 'codex' ? 'block animate-fade-in' : 'hidden'}>
+            {activeTab === 'codex' && <CodexComposer terms={terms} onTraceInTaelim={traceInTaelim} />}
+          </div>
 
-        <div className={activeTab === 'academy' ? 'block animate-fade-in' : 'hidden'}>
-          {activeTab === 'academy' && <VeyvanAcademy terms={terms} />}
-        </div>
+          <div className={activeTab === 'academy' ? 'block animate-fade-in' : 'hidden'}>
+            {activeTab === 'academy' && <VeyvanAcademy terms={terms} />}
+          </div>
 
-        <div className={activeTab === 'constructor' ? 'block animate-fade-in' : 'hidden'}>
-          <Constructor onAddTerm={addTerm} />
-        </div>
+          <div className={activeTab === 'constructor' ? 'block animate-fade-in' : 'hidden'}>
+            <Constructor onAddTerm={addTerm} />
+          </div>
 
-        <div className={activeTab === 'stats' ? 'block animate-fade-in' : 'hidden'}>
-          {activeTab === 'stats' && <StatsDashboard terms={terms} />}
-        </div>
-      </main>
+          <div className={activeTab === 'stats' ? 'block animate-fade-in' : 'hidden'}>
+            {activeTab === 'stats' && <StatsDashboard terms={terms} />}
+          </div>
+        </main>
 
-      <footer className="relative z-20 flex justify-between items-center px-6 py-3 text-slate-500 text-[10px] uppercase tracking-widest bg-black/40 backdrop-blur-md border-t border-white/5">
-        <p>Sistema Operativo Transversal // Protocolo Thalios Solaris 4.0 // Estación Humanidad</p>
-        <div className="flex gap-2">
-            <span className="text-cyan-400 font-mono tracking-widest drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">● 412 RADICALES CANÓNICOS</span>
-            <span className="text-emerald-500 opacity-80 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)] ml-4">● SINTAXIS VOS ACTIVA</span>
-        </div>
-      </footer>
+        <footer className="relative z-20 flex justify-between items-center px-6 py-2.5 text-slate-500 text-[10px] uppercase tracking-widest bg-black/40 dark:bg-black/40 light:bg-slate-100/90 backdrop-blur-md border-t border-white/5 dark:border-white/5 light:border-slate-200 flex-shrink-0">
+          <p>Sistema Operativo Transversal // Protocolo Thalios Solaris 4.0 // Estación Humanidad</p>
+          <div className="flex gap-2">
+              <span className="text-cyan-400 font-mono tracking-widest drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">● 412 RADICALES CANÓNICOS</span>
+              <span className="text-emerald-500 opacity-80 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)] ml-4">● SINTAXIS VOS ACTIVA</span>
+          </div>
+        </footer>
+      </div>
 
       {/* Mini-HUD Flotante de Audio y Espectrograma de Thalios Solaris */}
       <ThaliosAudioHUD onOpenSettings={() => setIsVoiceSettingsOpen(true)} />

@@ -1043,9 +1043,19 @@ class ThaliosVoiceService {
       throw new Error('No se pudo inicializar el cliente de Gemini.');
     }
 
+    // Limpiar markdown, wikilinks de Obsidian y caracteres de formato para una locución pura
+    const cleanText = text
+      .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, '$1') // [[enlace|alias]] -> alias, [[enlace]] -> enlace
+      .replace(/[*_#`~>]/g, '')                          // tokens markdown
+      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')          // [texto](url) -> texto
+      .trim();
+
     // Limitar texto para TTS de Gemini a un extracto razonable para evitar latencia excesiva
-    const truncatedText = text.length > 800 ? text.slice(0, 800) + '...' : text;
-    const prompt = this.buildGeminiVoicePrompt(truncatedText);
+    const truncatedText = cleanText.length > 800 ? cleanText.slice(0, 800) + '...' : cleanText;
+
+    // Seleccionar la voz adecuada según el arquetipo configurado o la voz específica elegida por el usuario
+    const archetypeVoice = this.config.geminiArchetype && GEMINI_ARCHETYPE_PRESETS[this.config.geminiArchetype]?.recommendedVoice;
+    const voiceToUse = this.config.geminiVoice || archetypeVoice || 'Charon';
 
     const ttsCandidateModels = [
       'gemini-3.8-flash-tts',
@@ -1063,13 +1073,13 @@ class ThaliosVoiceService {
       try {
         const response = await client.models.generateContent({
           model: ttsModel,
-          contents: prompt,
+          contents: truncatedText,
           config: {
             responseModalities: ["AUDIO"],
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: {
-                  voiceName: this.config.geminiVoice || 'Charon'
+                  voiceName: voiceToUse
                 }
               }
             }
