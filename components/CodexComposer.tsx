@@ -24,6 +24,7 @@ import MiniTaelim from './MiniTaelim';
 import { parseTaelimExpression, GlyphUnit, BridgeArc } from '../utils/taelimParser';
 import { TAELIM_MORPHEMES } from '../data/taelimRules';
 import { playWordResonance } from '../utils/taelimAudio';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 import { analyzeTerm } from '../services/geminiService';
 
 interface Props {
@@ -717,12 +718,12 @@ export const CodexComposer: React.FC<Props> = ({ terms, onTraceInTaelim }) => {
 
             <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
               {CANONICAL_FORMULAS.map((formula, idx) => (
-                <button
+                <div
                   key={idx}
                   onClick={() => handleAddExpression(formula.root)}
-                  className="w-full p-3 rounded-2xl bg-white/[0.02] hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 text-left transition-all duration-300 group flex items-start justify-between gap-3"
+                  className="w-full p-3 rounded-2xl bg-white/[0.02] hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 text-left transition-all duration-300 group flex items-start justify-between gap-3 cursor-pointer"
                 >
-                  <div className="space-y-0.5 min-w-0">
+                  <div className="space-y-0.5 min-w-0 flex-1">
                     <span className="font-mono font-bold text-xs text-slate-200 group-hover:text-cyan-300 truncate block">
                       {formula.root}
                     </span>
@@ -733,8 +734,21 @@ export const CodexComposer: React.FC<Props> = ({ terms, onTraceInTaelim }) => {
                       {formula.description}
                     </span>
                   </div>
-                  <Plus size={14} className="text-slate-500 group-hover:text-cyan-400 flex-shrink-0 mt-1" />
-                </button>
+                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        thaliosVoice.speak(`${formula.root}. ${formula.meaning}`, { title: `Fórmula // ${formula.root}` });
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-cyan-950/60 transition-colors cursor-pointer"
+                      title={`Pronunciar ${formula.root}`}
+                    >
+                      <Volume2 size={13} />
+                    </button>
+                    <Plus size={14} className="text-slate-500 group-hover:text-cyan-400" />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -905,12 +919,12 @@ export const CodexComposer: React.FC<Props> = ({ terms, onTraceInTaelim }) => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            playWordResonance(expr);
+                            thaliosVoice.speak(expr, { title: `Expresión Códice // ${expr}` });
                           }}
-                          className="p-1 rounded-md text-slate-500 hover:text-cyan-300 transition-colors"
-                          title="Resonancia acústica"
+                          className="p-1 rounded-md text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/40 transition-colors cursor-pointer"
+                          title="Pronunciación con Voz Thalios"
                         >
-                          <Volume2 size={13} />
+                          <Volume2 size={14} />
                         </button>
                       </div>
 
@@ -1058,8 +1072,21 @@ export const CodexComposer: React.FC<Props> = ({ terms, onTraceInTaelim }) => {
                         Interpretación Oracular de Thalios Solaris
                       </h4>
                     </div>
-                    <div className="px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono text-cyan-300 font-bold">
-                      Resonancia de Consciencia: {aiInterpretation.resonanceScore}%
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const speechText = `${activeExpression}. ${aiInterpretation.transcendentalTranslation}. ${aiInterpretation.philosophicalExegesis}. Consejo: ${aiInterpretation.oracleBlessing}`;
+                          thaliosVoice.speak(speechText, { title: `Interpretación // ${activeExpression}` });
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-500/40 text-cyan-300 font-bold font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(34,211,238,0.2)]"
+                        title="Recitar interpretación oracular con Voz Thalios"
+                      >
+                        <Volume2 size={13} />
+                        <span>Recitar Oráculo</span>
+                      </button>
+                      <div className="px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono text-cyan-300 font-bold">
+                        Resonancia: {aiInterpretation.resonanceScore}%
+                      </div>
                     </div>
                   </div>
 

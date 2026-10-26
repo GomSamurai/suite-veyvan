@@ -74,6 +74,7 @@ import {
   GeneratedSigilResult
 } from '../services/calligramAiService';
 import { playWordResonance } from '../utils/taelimAudio';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 import { 
   CANONICAL_PRESETS, 
   loadCustomPresets, 
@@ -929,11 +930,23 @@ const CalligramStudio: React.FC = () => {
     }));
   };
 
-  // Reproducir resonancia acústica de la frase
-  const handlePlaySound = () => {
+  // Reproducir enunciación sagrada de la frase con la Voz de Thalios
+  const handlePlaySound = async () => {
+    if (thaliosVoice.isSpeaking()) {
+      thaliosVoice.stop();
+      setIsPlayingSound(false);
+      return;
+    }
     setIsPlayingSound(true);
-    playWordResonance(expression);
-    setTimeout(() => setIsPlayingSound(false), 1200);
+    try {
+      await thaliosVoice.speak(expression, {
+        title: `Fórmula Tael'vohn // ${expression.slice(0, 36)}`,
+        onEnd: () => setIsPlayingSound(false),
+        onError: () => setIsPlayingSound(false),
+      });
+    } catch {
+      setIsPlayingSound(false);
+    }
   };
 
   // Descargar SVG
@@ -1105,6 +1118,18 @@ const CalligramStudio: React.FC = () => {
               className="flex-1 px-4 py-2.5 rounded-xl bg-black/60 border border-white/10 text-cyan-200 font-mono text-sm placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/60 transition-all"
             />
             <button
+              onClick={handlePlaySound}
+              className={`px-3.5 py-2.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+                isPlayingSound
+                  ? 'border-cyan-400 bg-cyan-950 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.4)] animate-pulse'
+                  : 'border-white/10 hover:border-cyan-500/40 bg-white/5 hover:bg-cyan-950/30 text-cyan-400'
+              }`}
+              title="Escuchar enunciación de la fórmula sagrada con Voz Thalios"
+            >
+              <Volume2 size={15} />
+              <span className="hidden sm:inline text-xs font-mono font-bold">Pronunciar</span>
+            </button>
+            <button
               onClick={() => {
                 setConfig(DEFAULT_CONFIG);
                 setSelectedRadicalIndices([]);
@@ -1205,13 +1230,25 @@ const CalligramStudio: React.FC = () => {
                       <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-current' : 'bg-slate-500'}`} />
                       <span>{sig.label}</span>
                     </button>
-                    <button
-                      onClick={(e) => handleDeleteFormula(sig.id, e)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 transition-all p-0.5 rounded cursor-pointer"
-                      title="Eliminar fórmula de la bóveda"
-                    >
-                      <X size={12} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          thaliosVoice.speak(sig.text, { title: `Fórmula // ${sig.label}` });
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-cyan-300 transition-all p-0.5 rounded cursor-pointer"
+                        title={`Pronunciar ${sig.label}`}
+                      >
+                        <Volume2 size={12} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteFormula(sig.id, e)}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 transition-all p-0.5 rounded cursor-pointer"
+                        title="Eliminar fórmula de la bóveda"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -1262,13 +1299,26 @@ const CalligramStudio: React.FC = () => {
                 Consejo Ontológico del Oráculo Veyvān
               </h3>
             </div>
-            <button
-              onClick={handleApplyOracleSuggestions}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-            >
-              <Check size={12} />
-              <span>Sintonizar Parámetros según el Oráculo</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const speechText = `${aiInsight.sacredMeaning}. Mantra de contemplación: ${aiInsight.contemplationMantra}. Geometría recomendada: ${GEOMETRY_INFO[aiInsight.recommendedGeometry]?.label || aiInsight.recommendedGeometry}. ${aiInsight.geometryRationale}`;
+                  thaliosVoice.speak(speechText, { title: "Oráculo Veyvān // Consejo Ontológico" });
+                }}
+                className="px-3 py-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 font-bold font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                title="Escuchar locución del Consejo Ontológico con Voz Thalios"
+              >
+                <Volume2 size={13} />
+                <span>Escuchar Oráculo</span>
+              </button>
+              <button
+                onClick={handleApplyOracleSuggestions}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+              >
+                <Check size={12} />
+                <span>Sintonizar Parámetros según el Oráculo</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans">

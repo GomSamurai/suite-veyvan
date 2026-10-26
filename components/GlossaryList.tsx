@@ -4,6 +4,7 @@ import { Search, Filter, GitCompare, Edit2, Terminal, Volume2, PenTool, Sparkles
 import MiniTaelim from './MiniTaelim';
 import { useLexicon } from '../context/LexiconContext';
 import { playWordResonance } from '../utils/taelimAudio';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 
 import GlossaryGlyphModal, { GlyphModalState } from './GlossaryGlyphModal';
 import GlossaryEditModal from './GlossaryEditModal';
@@ -33,6 +34,15 @@ const GlossaryCard: React.FC<GlossaryCardProps> = ({
   const { traceInTaelim } = useLexicon();
 
   useEffect(() => {
+    const unsub = thaliosVoice.subscribe((s) => {
+      if (!s.isSpeaking && !s.isPaused) {
+        setIsPlayingAudio(false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
@@ -50,11 +60,24 @@ const GlossaryCard: React.FC<GlossaryCardProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  const handlePlaySound = (e: React.MouseEvent) => {
+  const handlePlaySound = (e: React.MouseEvent, narrateFull: boolean = false) => {
     e.stopPropagation();
+    if (isPlayingAudio && thaliosVoice.getState().isSpeaking) {
+      thaliosVoice.stop();
+      setIsPlayingAudio(false);
+      return;
+    }
+
     setIsPlayingAudio(true);
-    playWordResonance(term.root);
-    setTimeout(() => setIsPlayingAudio(false), 800);
+    const textToSpeak = narrateFull
+      ? `${term.root}. ${term.spanishTranslation || term.meaning || ''}. ${term.description || ''}`
+      : term.root;
+
+    thaliosVoice.speak(textToSpeak, {
+      title: `Pronunciación // ${term.root}`,
+      onEnd: () => setIsPlayingAudio(false),
+      onError: () => setIsPlayingAudio(false)
+    });
   };
 
   const handleTrace = (e: React.MouseEvent) => {
@@ -75,9 +98,9 @@ const GlossaryCard: React.FC<GlossaryCardProps> = ({
       {/* Action Buttons (Edit + Audio + Trace + Compare) */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-md rounded-xl p-1 border border-white/10 shadow-lg">
         <button 
-          onClick={handlePlaySound}
+          onClick={(e) => handlePlaySound(e, true)}
           className={`p-1.5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 transition-colors rounded-lg ${isPlayingAudio ? 'text-cyan-300 animate-pulse' : ''}`}
-          title="Escuchar Resonancia Fónica del Aliento"
+          title="Narrar Ficha Completa (Término + Significado + Descripción)"
         >
           <Volume2 size={13} />
         </button>
@@ -125,10 +148,23 @@ const GlossaryCard: React.FC<GlossaryCardProps> = ({
             )}
          </div>
 
-         <div className="flex items-baseline justify-between gap-2 mt-1">
-            <h2 className="text-3xl font-bold font-rajdhani text-slate-100 tracking-wider drop-shadow-md">
-              {term.root || 'Desconocido'}
-            </h2>
+         <div className="flex items-center justify-between gap-2 mt-1">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-3xl font-bold font-rajdhani text-slate-100 tracking-wider drop-shadow-md">
+                {term.root || 'Desconocido'}
+              </h2>
+              <button
+                onClick={(e) => handlePlaySound(e, false)}
+                className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                  isPlayingAudio
+                    ? 'border-cyan-400 bg-cyan-950/80 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.5)] animate-pulse'
+                    : 'border-white/10 hover:border-cyan-500/50 bg-white/5 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10'
+                }`}
+                title={`Escuchar pronunciación de ${term.root} con la voz de Thalios`}
+              >
+                <Volume2 size={15} className={isPlayingAudio ? 'animate-bounce text-cyan-300' : ''} />
+              </button>
+            </div>
          </div>
 
          {/* Phonetic / Onomatopoeia breath trace */}

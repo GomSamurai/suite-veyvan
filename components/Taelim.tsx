@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   PenTool, Download, ZoomIn, ZoomOut, Dice5, 
   Eye, Activity, Wand2, Droplets, Move, Save, X, Upload, ArrowRight, Layers, Circle, Image as ImageIcon, Check, Play, Pause, RotateCcw, Hash, Palette,
-  Grid3X3, Route, Sun, Moon, Focus, Type, Compass, Sparkles
+  Grid3X3, Route, Sun, Moon, Focus, Type, Compass, Sparkles, Volume2
 } from 'lucide-react';
 import { Term, TaelimPreset } from '../types';
 import { TAELIM_MORPHEMES, Morpheme, MorphemeType } from '../data/taelimRules';
@@ -11,6 +11,7 @@ import { getGridMap, getBezierPointsWithWeight, getBrushPath, SegmentPressure } 
 import TaelimExportModal, { ExportConfig } from './TaelimExportModal';
 import TaelimControls from './TaelimControls';
 import { useLexicon } from '../context/LexiconContext';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 
 type GridMode = 'algante' | 'comun';
 type RenderEngine = 'plasma' | 'tech' | 'pluma' | 'nexo';
@@ -1036,10 +1037,19 @@ const Taelim: React.FC<Props> = ({ terms = [], customPresets = [], onSavePreset,
               {(() => {
                 if (parsedExpression.isMultiUnit) {
                   return (
-                    <div className="bg-black/60 backdrop-blur-xl border border-white/10 border-l-4 border-l-cyan-500 p-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
-                      <span className="text-[9px] text-cyan-400 font-mono tracking-widest uppercase block mb-1">
-                        EXPRESIÓN COMPUESTA // {mode === 'algante' ? 'ALGANTE (DESCENSO VERTICAL)' : 'COMÚN (SECUENCIA HORIZONTAL)'}
-                      </span>
+                    <div className="bg-black/75 backdrop-blur-xl border border-white/10 border-l-4 border-l-cyan-500 p-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)] pointer-events-auto">
+                      <div className="flex items-center justify-between gap-3 mb-1">
+                        <span className="text-[9px] text-cyan-400 font-mono tracking-widest uppercase block">
+                          EXPRESIÓN COMPUESTA // {mode === 'algante' ? 'ALGANTE (DESCENSO VERTICAL)' : 'COMÚN (SECUENCIA HORIZONTAL)'}
+                        </span>
+                        <button
+                          onClick={() => thaliosVoice.speak(text, { title: `Expresión Tael'im // ${text}` })}
+                          className="p-1.5 rounded-lg border border-white/10 hover:border-cyan-500/40 bg-white/5 hover:bg-cyan-500/15 text-slate-300 hover:text-cyan-300 transition-all cursor-pointer"
+                          title="Pronunciar expresión en Transversal"
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                      </div>
                       <h2 className="text-xl font-bold text-white tracking-widest font-rajdhani mb-2 uppercase">{text}</h2>
                       <div className="space-y-1.5 border-t border-white/10 pt-2.5 max-h-40 overflow-y-auto">
                         {units.map((u, i) => {
@@ -1049,6 +1059,16 @@ const Taelim: React.FC<Props> = ({ terms = [], customPresets = [], onSavePreset,
                               <div className="flex items-center gap-1.5">
                                 <span className="text-cyan-400 font-bold">[{ROMAN_NUMERALS[i] || i + 1}]</span>
                                 <span className="text-white font-bold">{u.rootText}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    thaliosVoice.speak(u.rootText || u.cleanRoot, { title: `Radical // ${u.rootText}` });
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-cyan-300 hover:bg-white/10 rounded transition-all cursor-pointer"
+                                  title={`Pronunciar ${u.rootText}`}
+                                >
+                                  <Volume2 size={11} />
+                                </button>
                               </div>
                               <span className="text-slate-400 truncate text-[10px] text-right">
                                 {found ? found.meaning : 'Raíz Canónica'}
@@ -1067,11 +1087,29 @@ const Taelim: React.FC<Props> = ({ terms = [], customPresets = [], onSavePreset,
 
                 const currentTerm = terms.find(t => t.root.toLowerCase() === text.toLowerCase());
                 return currentTerm ? (
-                  <div className="bg-black/60 backdrop-blur-xl border border-white/10 border-l-4 border-l-cyan-500 p-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
-                    <span className="text-[10px] text-cyan-400 font-mono tracking-widest uppercase block mb-1">
-                      ID: {(currentTerm.id || 'N/A').slice(-4)} // {currentTerm.category}
-                    </span>
-                    <h2 className="text-2xl font-bold text-white tracking-widest font-rajdhani mb-1">{currentTerm.root}</h2>
+                  <div className="bg-black/75 backdrop-blur-xl border border-white/10 border-l-4 border-l-cyan-500 p-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)] pointer-events-auto">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <span className="text-[10px] text-cyan-400 font-mono tracking-widest uppercase block">
+                        ID: {(currentTerm.id || 'N/A').slice(-4)} // {currentTerm.category}
+                      </span>
+                      <button
+                        onClick={() => thaliosVoice.speak(`${currentTerm.root}. ${currentTerm.meaning}. ${currentTerm.description || ''}`, { title: `Radical Tael'im // ${currentTerm.root}` })}
+                        className="p-1.5 rounded-lg border border-white/10 hover:border-cyan-500/40 bg-white/5 hover:bg-cyan-500/15 text-slate-300 hover:text-cyan-300 transition-all cursor-pointer"
+                        title={`Narrar ${currentTerm.root} con la voz de Thalios`}
+                      >
+                        <Volume2 size={14} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h2 className="text-2xl font-bold text-white tracking-widest font-rajdhani">{currentTerm.root}</h2>
+                      <button
+                        onClick={() => thaliosVoice.speak(currentTerm.root, { title: `Pronunciación // ${currentTerm.root}` })}
+                        className="p-1 text-slate-400 hover:text-cyan-300 hover:bg-white/10 rounded transition-all cursor-pointer"
+                        title={`Pronunciar ${currentTerm.root}`}
+                      >
+                        <Volume2 size={13} />
+                      </button>
+                    </div>
                     <p className="text-sm text-slate-300 font-medium mb-2 leading-tight">{currentTerm.meaning}</p>
                     {currentTerm.description && (
                       <div className="mt-3 pt-3 border-t border-white/5">
@@ -1080,8 +1118,17 @@ const Taelim: React.FC<Props> = ({ terms = [], customPresets = [], onSavePreset,
                     )}
                   </div>
                 ) : (
-                  <div className="bg-black/60 backdrop-blur-xl border border-white/10 border-l-4 border-l-slate-500 p-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
-                    <span className="text-[10px] text-slate-400 font-mono tracking-widest uppercase block mb-1">TRAZO_LIBRE</span>
+                  <div className="bg-black/75 backdrop-blur-xl border border-white/10 border-l-4 border-l-slate-500 p-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)] pointer-events-auto">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <span className="text-[10px] text-slate-400 font-mono tracking-widest uppercase block">TRAZO_LIBRE</span>
+                      <button
+                        onClick={() => thaliosVoice.speak(text, { title: `Trazo Libre // ${text}` })}
+                        className="p-1.5 rounded-lg border border-white/10 hover:border-cyan-500/40 bg-white/5 hover:bg-cyan-500/15 text-slate-300 hover:text-cyan-300 transition-all cursor-pointer"
+                        title="Pronunciar texto en Transversal"
+                      >
+                        <Volume2 size={14} />
+                      </button>
+                    </div>
                     <h2 className="text-xl font-bold text-white tracking-widest font-rajdhani uppercase mb-1">{text}</h2>
                     <p className="text-xs text-slate-500 mt-1 italic font-mono">Composición libre en matriz única.</p>
                   </div>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Term, CATEGORIES, Tonality } from '../types';
 import { analyzeTerm } from '../services/geminiService';
-import { Sparkles, Save, RotateCcw, Loader2, Command } from 'lucide-react';
+import { Sparkles, Save, RotateCcw, Loader2, Command, Volume2 } from 'lucide-react';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 
 interface Props {
   onAddTerm: (term: Term) => void;
@@ -78,16 +79,39 @@ const Constructor: React.FC<Props> = ({ onAddTerm }) => {
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
-                <label className="block text-[10px] font-bold text-cyan-600 uppercase mb-2 tracking-widest">Entrada 01: Raíz</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-bold text-cyan-600 uppercase tracking-widest">Entrada 01: Raíz</label>
+                  {root.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => thaliosVoice.speak(root.trim(), { title: `Raíz // ${root.trim()}` })}
+                      className="text-[10px] font-mono text-cyan-400 hover:text-cyan-200 flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Pronunciar raíz con Voz Thalios"
+                    >
+                      <Volume2 size={12} />
+                      <span>Oír Raíz</span>
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <span className="absolute left-3 top-3 text-slate-500 font-mono">&gt;</span>
                   <input 
                     type="text" 
                     value={root}
                     onChange={e => setRoot(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-none pl-8 pr-4 py-3 text-white focus:border-cyan-500 outline-none text-lg font-bold font-mono uppercase"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-none pl-8 pr-12 py-3 text-white focus:border-cyan-500 outline-none text-lg font-bold font-mono uppercase"
                     placeholder="KAEL"
                   />
+                  {root.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => thaliosVoice.speak(root.trim(), { title: `Raíz // ${root.trim()}` })}
+                      className="absolute right-3 top-3.5 text-slate-400 hover:text-cyan-300 transition-colors p-1"
+                      title="Probar fonética"
+                    >
+                      <Volume2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
               <div>
@@ -116,15 +140,31 @@ const Constructor: React.FC<Props> = ({ onAddTerm }) => {
                   <p className="text-slate-500">Auto-detectar tonalidad, sílabas y matiz.</p>
                 </div>
               </div>
-              <button 
-                type="button"
-                onClick={handleAnalyze}
-                disabled={isAnalyzing || !root}
-                className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 border border-cyan-700 hover:border-cyan-500 text-cyan-300 rounded-none text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isAnalyzing ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                {isAnalyzing ? 'Procesando...' : 'Ejecutar Análisis'}
-              </button>
+              <div className="flex items-center gap-3">
+                {root.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fullTermSpeech = `${root}. ${meaning ? `Significado: ${meaning}.` : ''} ${description ? `Descripción: ${description}.` : ''}`;
+                      thaliosVoice.speak(fullTermSpeech, { title: `Locución // ${root}` });
+                    }}
+                    className="px-4 py-2 bg-cyan-950/40 hover:bg-cyan-900/50 border border-cyan-800 text-cyan-300 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Escuchar locución completa del término"
+                  >
+                    <Volume2 size={14} />
+                    <span>Escuchar Locución</span>
+                  </button>
+                )}
+                <button 
+                  type="button"
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing || !root}
+                  className="px-6 py-2 bg-cyan-900/30 hover:bg-cyan-800/50 border border-cyan-700 hover:border-cyan-500 text-cyan-300 rounded-none text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAnalyzing ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                  {isAnalyzing ? 'Procesando...' : 'Ejecutar Análisis'}
+                </button>
+              </div>
             </div>
 
             <div>

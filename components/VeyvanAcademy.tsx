@@ -29,6 +29,7 @@ import {
   playDissonance, 
   playSoftClick 
 } from '../utils/taelimAudio';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 import { parseTaelimExpression } from '../utils/taelimParser';
 import { TAELIM_MORPHEMES } from '../data/taelimRules';
 
@@ -840,13 +841,26 @@ export const VeyvanAcademy: React.FC<Props> = ({ terms }) => {
                     <span className="font-mono text-3xl font-bold text-cyan-400 uppercase">
                       {hoveredPhoneme}
                     </span>
-                    <button
-                      onClick={() => playPhoneme(hoveredPhoneme)}
-                      className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 transition-colors"
-                      title="Resonancia a 432Hz"
-                    >
-                      <Volume2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          const p = PHONEME_LORE[hoveredPhoneme];
+                          thaliosVoice.speak(`Fonema ${hoveredPhoneme.toUpperCase()}. ${p.concept}. ${p.desc}`, { title: `Fonema // ${hoveredPhoneme.toUpperCase()}` });
+                        }}
+                        className="px-2.5 py-1 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/60 transition-colors flex items-center gap-1 text-[10px] font-mono cursor-pointer"
+                        title="Pronunciación con Voz Thalios"
+                      >
+                        <Volume2 size={13} />
+                        <span>Voz</span>
+                      </button>
+                      <button
+                        onClick={() => playPhoneme(hoveredPhoneme)}
+                        className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-cyan-300 hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Resonancia armónica a 432Hz"
+                      >
+                        <Volume2 size={14} />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -1024,8 +1038,17 @@ export const VeyvanAcademy: React.FC<Props> = ({ terms }) => {
                 />
               </div>
 
-              <div>
-                <span className="font-mono font-bold text-lg text-slate-100">{currentForgeTerm.root}</span>
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-lg text-slate-100">{currentForgeTerm.root}</span>
+                  <button
+                    onClick={() => thaliosVoice.speak(`${currentForgeTerm.root}. ${currentForgeTerm.meaning}. ${currentForgeTerm.description || ''}`, { title: `Glifo // ${currentForgeTerm.root}` })}
+                    className="p-1 rounded-md text-cyan-400 hover:text-cyan-200 hover:bg-cyan-950/60 transition-colors cursor-pointer"
+                    title={`Pronunciar ${currentForgeTerm.root}`}
+                  >
+                    <Volume2 size={15} />
+                  </button>
+                </div>
                 <span className="text-xs text-cyan-300 block font-light mt-0.5">"{currentForgeTerm.meaning}"</span>
                 <span className="text-[10px] font-mono text-slate-500 block mt-1">{currentForgeTerm.tomo}</span>
               </div>
@@ -1153,7 +1176,16 @@ export const VeyvanAcademy: React.FC<Props> = ({ terms }) => {
                 </div>
 
                 <div className="text-xs text-slate-300 font-light space-y-1">
-                  <p><strong className="text-slate-100">{decodeTargetTerm.root}</strong>: {decodeTargetTerm.meaning}</p>
+                  <div className="flex items-center gap-2">
+                    <p><strong className="text-slate-100">{decodeTargetTerm.root}</strong>: {decodeTargetTerm.meaning}</p>
+                    <button
+                      onClick={() => thaliosVoice.speak(`${decodeTargetTerm.root}. ${decodeTargetTerm.meaning}. ${decodeTargetTerm.description || ''}`, { title: `Glifo // ${decodeTargetTerm.root}` })}
+                      className="p-1 rounded text-cyan-400 hover:text-cyan-200 hover:bg-cyan-950/60 transition-colors cursor-pointer"
+                      title="Pronunciar término con Voz Thalios"
+                    >
+                      <Volume2 size={13} />
+                    </button>
+                  </div>
                   <p className="text-[11px] text-slate-400">{decodeTargetTerm.description}</p>
                   <p className="text-[10px] font-mono text-cyan-400/80">{decodeTargetTerm.tomo}</p>
                 </div>
@@ -1284,9 +1316,24 @@ export const VeyvanAcademy: React.FC<Props> = ({ terms }) => {
                 ? 'bg-emerald-950/40 border border-emerald-500/40 text-emerald-300' 
                 : 'bg-rose-950/40 border border-rose-500/40 text-rose-300'
             }`}>
-              <div className="flex items-center gap-2 font-bold">
-                {syntaxFeedback.isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                <span>{syntaxFeedback.isCorrect ? 'Arquitectura Canónica Correcta' : 'Disonancia Sintáctica'}</span>
+              <div className="flex items-center justify-between font-bold flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  {syntaxFeedback.isCorrect ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                  <span>{syntaxFeedback.isCorrect ? 'Arquitectura Canónica Correcta' : 'Disonancia Sintáctica'}</span>
+                </div>
+                {syntaxFeedback.isCorrect && (
+                  <button
+                    onClick={() => {
+                      const fullSentence = `${currentSyntax.correctVerb} · ${currentSyntax.correctObj} · ${currentSyntax.correctSubj}`;
+                      thaliosVoice.speak(`${fullSentence}. ${currentSyntax.spanishPrompt}. ${currentSyntax.explanation}`, { title: `Sentencia VOS // ${fullSentence}` });
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/70 border border-emerald-400/40 text-emerald-200 text-[10px] font-mono flex items-center gap-1.5 cursor-pointer shadow-[0_0_10px_rgba(52,211,153,0.2)]"
+                    title="Escuchar locución canónica de la sentencia VOS"
+                  >
+                    <Volume2 size={13} />
+                    <span>Recitar Sentencia</span>
+                  </button>
+                )}
               </div>
               <p className="text-slate-300 font-light leading-relaxed">
                 {syntaxFeedback.explanation}
@@ -1369,13 +1416,25 @@ export const VeyvanAcademy: React.FC<Props> = ({ terms }) => {
           {/* Oracle Verdict Output */}
           {oracleVerdict && (
             <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-950/40 via-slate-900/90 to-cyan-950/40 border border-purple-500/40 space-y-3 animate-fade-in shadow-2xl">
-              <div className="flex items-center justify-between pb-2 border-b border-purple-500/20">
+              <div className="flex items-center justify-between pb-2 border-b border-purple-500/20 flex-wrap gap-2">
                 <span className="text-xs font-bold font-rajdhani uppercase tracking-widest text-purple-300">
                   {oracleVerdict.title}
                 </span>
-                <span className="text-xs font-mono font-bold text-cyan-300">
-                  Pureza de Juicio: {oracleVerdict.score}%
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      thaliosVoice.speak(`${oracleVerdict.title}. ${oracleVerdict.commentary}`, { title: "Veredicto // Thalios Solaris" });
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-200 text-[10px] font-mono flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(192,132,252,0.2)]"
+                    title="Escuchar veredicto de Thalios Solaris"
+                  >
+                    <Volume2 size={13} />
+                    <span>Oír Veredicto</span>
+                  </button>
+                  <span className="text-xs font-mono font-bold text-cyan-300">
+                    Pureza de Juicio: {oracleVerdict.score}%
+                  </span>
+                </div>
               </div>
               <p className="text-xs text-slate-200 font-light leading-relaxed">
                 {oracleVerdict.commentary}

@@ -47,8 +47,10 @@ import {
   Zap,
   Download,
   Flame,
-  ArrowRight
+  ArrowRight,
+  Volume2
 } from 'lucide-react';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 
 export interface AuthorNotesEcosystemProps {
   sectionId: string;
@@ -1196,6 +1198,16 @@ ${note.content}
                           title="Copiar apunte en formato Markdown"
                         >
                           {copiedId === note.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            thaliosVoice.speak(`${note.title}. ${note.content}`, { title: `Apunte // ${note.title.slice(0, 30)}` });
+                          }}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-300 hover:bg-white/5 transition-colors cursor-pointer"
+                          title="Escuchar locución del apunte con Voz Thalios"
+                        >
+                          <Volume2 size={13} />
                         </button>
 
                         <button

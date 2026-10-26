@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { 
   PenTool, Dice5, Wand2, Droplets, Move, Save, X, Upload, ArrowRight, Layers, Circle, Play, Pause, Hash, Palette,
-  Grid3X3, Route, Sparkles, Sliders, Zap, Check, Eye, Maximize2, Minimize2
+  Grid3X3, Route, Sparkles, Sliders, Zap, Check, Eye, Maximize2, Minimize2, Volume2
 } from 'lucide-react';
 import { TAELIM_MORPHEMES } from '../data/taelimRules';
 import { TaelimPreset } from '../types';
 import { BridgeArc } from '../utils/taelimParser';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 
 export interface MorphemeConfig {
   size: number;
@@ -206,6 +207,14 @@ const TaelimControls: React.FC<TaelimControlsProps> = (props) => {
               className="w-full bg-black/50 border border-white/10 rounded-xl px-3.5 py-2.5 text-white focus:border-cyan-500/50 outline-none text-base font-bold font-rajdhani tracking-[0.12em] uppercase disabled:opacity-50 transition-all placeholder:text-[11px] placeholder:tracking-wider placeholder-slate-500 relative z-10 shadow-inner block"
               placeholder="PALABRA O FÓRMULA TAEL'IM..."
             />
+            <button 
+              onClick={() => thaliosVoice.speak(props.text, { title: `Caligrafía Tael'im // ${props.text}` })}
+              disabled={props.isAnimating || !props.text.trim()} 
+              title="Escuchar pronunciación de la fórmula o radical en Transversal"
+              className="px-3 bg-black/50 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 border border-white/10 hover:border-cyan-500/40 rounded-xl disabled:opacity-50 transition-colors relative z-10 cursor-pointer"
+            >
+              <Volume2 size={16}/>
+            </button>
             <button 
               onClick={props.handleRandomWord} 
               disabled={props.isAnimating} 

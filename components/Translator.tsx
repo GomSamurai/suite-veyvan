@@ -151,31 +151,36 @@ const Translator: React.FC = () => {
 
   const { traceInTaelim, setActiveTab, forgeCalligram } = useLexicon();
 
-  // Gestión de voz de Thalios Solaris para respuestas del oráculo
-  const [isSpeakingOracle, setIsSpeakingOracle] = useState(false);
+  // Gestión de voz de Thalios Solaris en toda la vista de traducción
+  const [activeSpokenId, setActiveSpokenId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = thaliosVoice.subscribe((s) => {
       if (!s.isSpeaking && !s.isPaused) {
-        setIsSpeakingOracle(false);
+        setActiveSpokenId(null);
       }
     });
     return () => unsub();
   }, []);
 
-  const handleToggleSpeakOracleAnswer = () => {
-    if (!oracleAnswer) return;
-    if (isSpeakingOracle && thaliosVoice.getState().isSpeaking) {
+  const handleSpeakText = (id: string, textToSpeak: string, title: string) => {
+    if (!textToSpeak) return;
+    if (activeSpokenId === id && thaliosVoice.getState().isSpeaking) {
       thaliosVoice.stop();
-      setIsSpeakingOracle(false);
+      setActiveSpokenId(null);
       return;
     }
-    setIsSpeakingOracle(true);
-    thaliosVoice.speak(oracleAnswer, {
-      title: 'Consultor Lingüístico Veyvān // Thalios Solaris',
-      onEnd: () => setIsSpeakingOracle(false),
-      onError: () => setIsSpeakingOracle(false)
+    setActiveSpokenId(id);
+    thaliosVoice.speak(textToSpeak, {
+      title,
+      onEnd: () => setActiveSpokenId(null),
+      onError: () => setActiveSpokenId(null)
     });
+  };
+
+  const handleToggleSpeakOracleAnswer = () => {
+    if (!oracleAnswer) return;
+    handleSpeakText('oracle-answer', oracleAnswer, 'Consultor Lingüístico Veyvān // Thalios Solaris');
   };
 
   const handleConsult = async (overrideText?: string, overrideMode?: ConsultantMode) => {
@@ -230,21 +235,15 @@ const Translator: React.FC = () => {
 
   const handlePlaySound = (customText?: string) => {
     const textToPlay = customText || activeTransversal;
-    if (!textToPlay || isPlayingAudio) return;
-    setIsPlayingAudio(true);
-    const words = textToPlay.replace(/[···,]/g, ' ').split(/\s+/).filter(Boolean);
-    let delay = 0;
-    words.forEach(w => {
-      setTimeout(() => playWordResonance(w), delay);
-      delay += 380;
-    });
-    setTimeout(() => setIsPlayingAudio(false), delay + 400);
+    if (!textToPlay) return;
+    handleSpeakText('main-transversal', textToPlay, `Locución Transversal // ${textToPlay}`);
   };
 
   const handlePlayUnitSound = (unit: GlyphUnit, idx: number) => {
     setPlayingUnitIndex(idx);
-    playWordResonance(unit.cleanRoot || unit.rootText);
-    setTimeout(() => setPlayingUnitIndex(null), 1000);
+    const soundText = unit.rootText || unit.cleanRoot;
+    handleSpeakText(`unit-${idx}`, soundText, `Radical Transversal // ${soundText}`);
+    setTimeout(() => setPlayingUnitIndex(null), 1200);
   };
 
   const handleTraceSentence = (customText?: string) => {
@@ -605,10 +604,17 @@ const Translator: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handlePlaySound()}
-                className={`p-2.5 rounded-xl border border-white/10 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 bg-white/5 transition-all cursor-pointer ${isPlayingAudio ? 'animate-pulse text-cyan-400 border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.4)]' : ''}`}
-                title={`Escuchar Cadencia del Aliento (${expressionView === 'compact' ? 'Síntesis Aforística' : 'Canónica'})`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all cursor-pointer ${
+                  activeSpokenId === 'main-transversal' 
+                    ? 'border-cyan-400 bg-cyan-950/80 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.5)] animate-pulse font-bold' 
+                    : 'border-white/10 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 bg-white/5'
+                }`}
+                title={`Escuchar Locución Transversal con Voz de Thalios (${expressionView === 'compact' ? 'Síntesis Aforística' : 'Canónica'})`}
               >
-                <Volume2 size={16} />
+                <Volume2 size={16} className={activeSpokenId === 'main-transversal' ? 'text-cyan-300 animate-bounce' : ''} />
+                <span className="text-xs font-mono font-bold hidden sm:inline">
+                  {activeSpokenId === 'main-transversal' ? 'Locución Activa' : 'Pronunciar'}
+                </span>
               </button>
               <button
                 onClick={() => handleTraceSentence()}
@@ -642,17 +648,30 @@ const Translator: React.FC = () => {
               </span>
             </div>
 
-            <div className={`p-6 md:p-7 rounded-2xl bg-black/80 border transition-all shadow-inner relative overflow-hidden ${
+            <div className={`p-6 md:p-7 rounded-2xl bg-black/80 border transition-all shadow-inner relative overflow-hidden group ${
               isCompact 
                 ? 'border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.15)]' 
                 : 'border-cyan-500/40 shadow-[0_0_30px_rgba(34,211,238,0.15)]'
             }`}>
+              <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
+                <button
+                  onClick={() => handlePlaySound()}
+                  className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                    activeSpokenId === 'main-transversal'
+                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.4)] animate-pulse'
+                      : 'bg-black/60 border-white/10 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40'
+                  }`}
+                  title="Escuchar locución del dialecto Transversal"
+                >
+                  <Volume2 size={16} />
+                </button>
+              </div>
               <div className="absolute top-0 right-0 p-3 opacity-20 pointer-events-none">
                 <span className="text-5xl font-mono select-none font-bold">
                   {isCompact ? 'Σ' : 'Ω'}
                 </span>
               </div>
-              <p className={`text-2xl sm:text-3xl md:text-5xl font-bold font-rajdhani tracking-[0.16em] leading-tight ${
+              <p className={`text-2xl sm:text-3xl md:text-5xl font-bold font-rajdhani tracking-[0.16em] leading-tight pr-10 ${
                 isCompact 
                   ? 'text-amber-100 drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]' 
                   : 'text-cyan-100 drop-shadow-[0_0_20px_rgba(34,211,238,0.5)]'
@@ -841,22 +860,42 @@ const Translator: React.FC = () => {
             ) : (
               /* MODE 2: DESGLOSE POR RADICALES (INTERACTIVE INSPECTOR) */
               <div className="space-y-5">
-                {/* Unit Selector Tabs */}
+                {/* Unit Selector Tabs with Instant Audio */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-white/5 custom-scrollbar">
-                  {currentUnits.map((u, i) => (
-                    <button
-                      key={u.id || i}
-                      onClick={() => setSelectedUnitIndex(i)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-mono tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                        safeUnitIndex === i
-                          ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(34,211,238,0.35)]'
-                          : 'bg-white/5 text-slate-400 hover:text-cyan-200 hover:bg-white/10 border border-white/5'
-                      }`}
-                    >
-                      <span className="text-[9px] opacity-75 font-bold">[{i + 1}]</span>
-                      <span>{u.rootText}</span>
-                    </button>
-                  ))}
+                  {currentUnits.map((u, i) => {
+                    const isUnitSpeaking = activeSpokenId === `unit-${i}`;
+                    return (
+                      <div key={u.id || i} className="flex items-center flex-shrink-0">
+                        <button
+                          onClick={() => setSelectedUnitIndex(i)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-l-xl text-xs font-mono tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                            safeUnitIndex === i
+                              ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-slate-950 font-bold shadow-[0_0_15px_rgba(34,211,238,0.35)]'
+                              : 'bg-white/5 text-slate-400 hover:text-cyan-200 hover:bg-white/10 border-y border-l border-white/5'
+                          }`}
+                        >
+                          <span className="text-[9px] opacity-75 font-bold">[{i + 1}]</span>
+                          <span>{u.rootText}</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayUnitSound(u, i);
+                          }}
+                          className={`px-2 py-1.5 rounded-r-xl border-y border-r transition-all cursor-pointer text-xs ${
+                            isUnitSpeaking 
+                              ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)] animate-pulse' 
+                              : safeUnitIndex === i 
+                                ? 'bg-cyan-600/80 text-slate-950 border-cyan-500 hover:bg-cyan-400' 
+                                : 'bg-white/5 text-slate-400 hover:text-cyan-300 hover:bg-white/10 border-white/5'
+                          }`}
+                          title={`Pronunciar ${u.rootText}`}
+                        >
+                          <Volume2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Selected Radical Showcase */}
@@ -973,20 +1012,46 @@ const Translator: React.FC = () => {
           {/* Poetic & Literal Translations */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Poetic Joren Thalvus Translation */}
-            <div className="border border-amber-500/20 bg-gradient-to-br from-amber-950/10 to-black/40 rounded-2xl p-5 md:p-6 space-y-2.5">
-              <span className="text-[10px] uppercase font-mono tracking-widest text-amber-400 font-bold flex items-center gap-1.5">
-                <Feather size={13} className="text-amber-400" /> Interpretación Poética ({isCompact ? 'Síntesis Aforística' : 'Estilo Joren Thalvus'})
-              </span>
+            <div className="border border-amber-500/20 bg-gradient-to-br from-amber-950/10 to-black/40 rounded-2xl p-5 md:p-6 space-y-2.5 relative group">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-mono tracking-widest text-amber-400 font-bold flex items-center gap-1.5">
+                  <Feather size={13} className="text-amber-400" /> Interpretación Poética ({isCompact ? 'Síntesis Aforística' : 'Estilo Joren Thalvus'})
+                </span>
+                <button
+                  onClick={() => handleSpeakText('poetic', activePoetic, 'Interpretación Poética Veyvān')}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    activeSpokenId === 'poetic'
+                      ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.4)] animate-pulse'
+                      : 'border-white/10 bg-white/5 text-slate-400 hover:text-amber-300 hover:border-amber-500/40'
+                  }`}
+                  title="Escuchar interpretación poética con la voz de Thalios"
+                >
+                  <Volume2 size={14} />
+                </button>
+              </div>
               <p className="text-sm md:text-base text-slate-100 italic font-sans leading-relaxed">
                 {activePoetic}
               </p>
             </div>
 
             {/* Literal Morphological Decomposition */}
-            <div className="border border-white/10 bg-black/40 rounded-2xl p-5 md:p-6 space-y-2.5">
-              <span className="text-[10px] uppercase font-mono tracking-widest text-slate-400 font-bold flex items-center gap-1.5">
-                <BookOpen size={13} className="text-slate-400" /> Desglose Literal Morfosintáctico
-              </span>
+            <div className="border border-white/10 bg-black/40 rounded-2xl p-5 md:p-6 space-y-2.5 relative group">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-mono tracking-widest text-slate-400 font-bold flex items-center gap-1.5">
+                  <BookOpen size={13} className="text-slate-400" /> Desglose Literal Morfosintáctico
+                </span>
+                <button
+                  onClick={() => handleSpeakText('literal', activeLiteral, 'Desglose Literal Morfosintáctico')}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    activeSpokenId === 'literal'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.4)] animate-pulse'
+                      : 'border-white/10 bg-white/5 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40'
+                  }`}
+                  title="Escuchar desglose morfosintáctico"
+                >
+                  <Volume2 size={14} />
+                </button>
+              </div>
               <p className="text-xs text-slate-300 font-mono leading-relaxed opacity-90">
                 {activeLiteral}
               </p>
@@ -1002,19 +1067,49 @@ const Translator: React.FC = () => {
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
-              <div className="p-3.5 rounded-xl bg-cyan-950/15 border border-cyan-500/20 space-y-1">
-                <span className="text-[9px] font-mono uppercase tracking-wider text-cyan-400 font-bold block">
-                  Casta Algante (Émulo / Alta Cultura):
-                </span>
+              <div className="p-3.5 rounded-xl bg-cyan-950/15 border border-cyan-500/20 space-y-1 relative group">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-cyan-400 font-bold block">
+                    Casta Algante (Émulo / Alta Cultura):
+                  </span>
+                  {result.sociolectAlgante && (
+                    <button
+                      onClick={() => handleSpeakText('algante', result.sociolectAlgante!, 'Casta Algante // Estación')}
+                      className={`p-1 rounded-md border transition-all cursor-pointer ${
+                        activeSpokenId === 'algante'
+                          ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 animate-pulse'
+                          : 'border-transparent text-slate-500 hover:text-cyan-300 hover:bg-white/5'
+                      }`}
+                      title="Pronunciar versión Casta Algante"
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  )}
+                </div>
                 <p className="text-slate-300 italic">
                   {result.sociolectAlgante || 'Pronombres de estatus preservados; cadencia ceremonial extendida.'}
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-orange-950/15 border border-orange-500/20 space-y-1">
-                <span className="text-[9px] font-mono uppercase tracking-wider text-orange-400 font-bold block">
-                  Dialecto Oxidado (Cubiertas Bajas Periféricas):
-                </span>
+              <div className="p-3.5 rounded-xl bg-orange-950/15 border border-orange-500/20 space-y-1 relative group">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-orange-400 font-bold block">
+                    Dialecto Oxidado (Cubiertas Bajas Periféricas):
+                  </span>
+                  {result.sociolectOxidado && (
+                    <button
+                      onClick={() => handleSpeakText('oxidado', result.sociolectOxidado!, 'Dialecto Oxidado // Cubiertas Bajas')}
+                      className={`p-1 rounded-md border transition-all cursor-pointer ${
+                        activeSpokenId === 'oxidado'
+                          ? 'bg-orange-500/25 border-orange-400 text-orange-200 animate-pulse'
+                          : 'border-transparent text-slate-500 hover:text-orange-300 hover:bg-white/5'
+                      }`}
+                      title="Pronunciar versión Dialecto Oxidado"
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  )}
+                </div>
                 <p className="text-slate-300 italic">
                   {result.sociolectOxidado || 'Supresión de pronombres; economía de aliento y foco en la supervivencia pura.'}
                 </p>
@@ -1047,9 +1142,22 @@ const Translator: React.FC = () => {
 
           {/* Philosophical Note */}
           {result.philosophicalNote && (
-            <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-xs font-mono text-cyan-200/90 leading-relaxed shadow-sm">
-              <span className="font-bold text-cyan-400">Exégesis del Oráculo Veyvān: </span>
-              {result.philosophicalNote}
+            <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-xs font-mono text-cyan-200/90 leading-relaxed shadow-sm relative group flex items-start justify-between gap-3">
+              <div>
+                <span className="font-bold text-cyan-400">Exégesis del Oráculo Veyvān: </span>
+                <span>{result.philosophicalNote}</span>
+              </div>
+              <button
+                onClick={() => handleSpeakText('exegesis', result.philosophicalNote!, 'Exégesis del Oráculo Veyvān')}
+                className={`p-2 rounded-xl border shrink-0 transition-all cursor-pointer ${
+                  activeSpokenId === 'exegesis'
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.4)] animate-pulse'
+                    : 'border-white/10 bg-white/5 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40'
+                }`}
+                title="Narrar Exégesis del Oráculo con la voz de Thalios"
+              >
+                <Volume2 size={14} />
+              </button>
             </div>
           )}
         </div>
