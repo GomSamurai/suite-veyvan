@@ -348,7 +348,7 @@ const STORAGE_KEY_V2 = 'thalios_voice_config_v2';
 const STORAGE_KEY_V1 = 'thalios_voice_config_v1';
 
 export const DEFAULT_VOICE_CONFIG: ThaliosVoiceConfig = {
-  engine: 'kokoro-onnx',
+  engine: 'web-speech',
   voiceUri: '',
   geminiVoice: 'Charon',
   kokoroVoice: 'em_santa',
@@ -441,7 +441,12 @@ class ThaliosVoiceService {
       const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
       if (rawV2) {
         const parsed = JSON.parse(rawV2);
-        // Si no tenía voz o era fenrir por defecto previo, cambiar a em_santa para dicción nativa en español
+        // Devolver a web-speech por defecto para respuesta instantánea sin esperas de inferencia en CPU
+        if (parsed._engineMigratedV3 !== true) {
+          parsed.engine = 'web-speech';
+          parsed._engineMigratedV3 = true;
+          localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(parsed));
+        }
         if (!parsed.kokoroVoice || !VALID_KOKORO_VOICE_IDS.has(parsed.kokoroVoice as any)) {
           parsed.kokoroVoice = 'em_santa';
         }
@@ -455,10 +460,10 @@ class ThaliosVoiceService {
       const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
       if (rawV1) {
         const parsed = JSON.parse(rawV1);
-        // Migrar forzando Kokoro-82M como motor por defecto canónico en español
-        parsed.engine = 'kokoro-onnx';
+        parsed.engine = 'web-speech';
         parsed.kokoroVoice = 'em_santa';
         parsed.kokoroDialect = 'castellano';
+        parsed._engineMigratedV3 = true;
         const migrated = { ...DEFAULT_VOICE_CONFIG, ...parsed };
         localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(migrated));
         return migrated;
@@ -940,7 +945,7 @@ class ThaliosVoiceService {
   ): Promise<void> {
     try {
       this.state.isLoading = true;
-      this.state.currentTitle = 'Inicializando síntesis Kokoro-82M...';
+      this.state.currentTitle = 'Sintetizando transmisión con Kokoro-82M...';
       this.notifyListeners();
 
       const tts = await this.getKokoro();
@@ -953,39 +958,31 @@ class ThaliosVoiceService {
 
       const dialect = this.config.kokoroDialect || 'castellano';
 
-      // 1. Dividir el texto en oraciones naturales y completas
-      const chunks = splitTextIntoSentences(text, 220);
+      // 1. Dividir en bloques amplios de hasta 420 caracteres (evitar micro-fragmentos)
+      const chunks = splitTextIntoSentences(text, 420);
       if (chunks.length === 0) {
         this.stop();
         if (options.onEnd) options.onEnd();
         return;
       }
 
-      const ctx = this.initAudioContext();
-      if (!ctx || !this.biquadFilter) {
-        throw new Error('AudioContext no inicializado');
-      }
-
-      let nextStartTime = ctx.currentTime + 0.05;
-      this.scheduledBufferSources = [];
+      const sampleRate = 24000;
+      const audioBuffers: Float32Array[] = [];
+      const silenceBetween = new Float32Array(Math.round(sampleRate * 0.12)); // 120ms pausa respiratoria natural
 
       for (let i = 0; i < chunks.length; i++) {
-        // Verificar si el usuario canceló o detuvo la reproducción
         if (cancelId !== this.queueCancelToken || !this.state.isSpeaking) {
-          break;
+          return;
         }
 
-        const chunkText = chunks[i];
         if (chunks.length > 1) {
-          this.state.currentTitle = `Transmitiendo bitácora (${i + 1}/${chunks.length})...`;
+          this.state.currentTitle = `Generando audio neural (${i + 1}/${chunks.length})...`;
           this.notifyListeners();
         }
 
-        // Convertir a fonemas IPA en castellano
-        const ipa = spanishToIpa(chunkText, dialect);
+        const ipa = spanishToIpa(chunks[i], dialect);
         if (!ipa || !ipa.trim()) continue;
 
-        // Tokenizar y generar audio con los pesos neurales seleccionados
         const { input_ids } = tts.tokenizer(ipa, { truncation: true });
         const audio = await tts.generate_from_ids(input_ids, {
           voice: voiceKey,
@@ -993,47 +990,41 @@ class ThaliosVoiceService {
         });
 
         if (cancelId !== this.queueCancelToken || !this.state.isSpeaking) {
-          break;
+          return;
         }
 
         if (audio && audio.audio && audio.audio instanceof Float32Array && audio.audio.length > 0) {
-          const samples: Float32Array = audio.audio;
-          const sampleRate = audio.sampling_rate || 24000;
-          const audioBuffer = ctx.createBuffer(1, samples.length, sampleRate);
-          audioBuffer.getChannelData(0).set(samples);
-
-          const source = ctx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(this.biquadFilter);
-
-          if (nextStartTime < ctx.currentTime) {
-            nextStartTime = ctx.currentTime + 0.02;
-          }
-
-          source.start(nextStartTime);
-          this.scheduledBufferSources.push(source);
-
-          // Si es el primer fragmento, desbloquear el indicador de carga
-          if (i === 0) {
-            this.state.isLoading = false;
-            this.notifyListeners();
-          }
-
-          const isLast = (i === chunks.length - 1);
-          if (isLast) {
-            source.onended = async () => {
-              if (cancelId !== this.queueCancelToken) return;
-              this.setIntercomStatic(false);
-              await this.playTransmissionChime('close');
-              this.stop();
-              if (options.onEnd) options.onEnd();
-            };
-          }
-
-          // Pausa natural entre oraciones (140 ms de respiración)
-          nextStartTime += audioBuffer.duration + 0.14;
+          audioBuffers.push(audio.audio);
         }
       }
+
+      if (audioBuffers.length === 0) {
+        this.stop();
+        if (options.onEnd) options.onEnd();
+        return;
+      }
+
+      // 2. Unir todos los fragmentos generados en un solo búfer continuo
+      // De esta forma se reproduce todo directamente sin parar frase por frase
+      let totalLength = 0;
+      for (let i = 0; i < audioBuffers.length; i++) {
+        totalLength += audioBuffers[i].length;
+        if (i < audioBuffers.length - 1) totalLength += silenceBetween.length;
+      }
+
+      const unified = new Float32Array(totalLength);
+      let offset = 0;
+      for (let i = 0; i < audioBuffers.length; i++) {
+        unified.set(audioBuffers[i], offset);
+        offset += audioBuffers[i].length;
+        if (i < audioBuffers.length - 1) {
+          unified.set(silenceBetween, offset);
+          offset += silenceBetween.length;
+        }
+      }
+
+      // 3. Reproducir el audio unificado de forma 100% continua a través de la cadena DSP
+      await this.playAudioBuffer(unified, sampleRate, options);
     } catch (err: any) {
       console.error('Fallo en síntesis con Kokoro-82M ONNX:', err);
       this.state.isLoading = false;

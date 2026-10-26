@@ -654,25 +654,13 @@ const LoreAtlas: React.FC = () => {
 
   const buildLeaderNarration = (leader: any): string => {
     const parts: string[] = [];
-    parts.push(`Bitácora canónica de la travesía: ${leader.name}, ${leader.title}.`);
-    if (leader.epithet) parts.push(`Reconocido en los anales como ${leader.epithet}.`);
+    parts.push(`Bitácora canónica: ${leader.name}, ${leader.title}.`);
+    if (leader.epithet) parts.push(`Reconocido como ${leader.epithet}.`);
     if (leader.origin && leader.period) {
-      parts.push(`Origen: ${leader.origin}. Mandato de ${leader.mandateYears} años, entre los periodos ${leader.period}.`);
+      parts.push(`Origen: ${leader.origin}. Mandato: ${leader.period}.`);
     }
     if (leader.iconQuote) {
-      parts.push(`Cita canónica: «${leader.iconQuote}».`);
-    }
-    if (leader.biography) {
-      parts.push(`Biografía y ascenso al poder: ${leader.biography}`);
-    }
-    if (leader.crisisAndAscent) {
-      parts.push(`Crisis definitoria: ${leader.crisisAndAscent}`);
-    }
-    if (leader.keyMilestones && Array.isArray(leader.keyMilestones) && leader.keyMilestones.length > 0) {
-      parts.push(`Hitos clave del gobierno: ${leader.keyMilestones.join('. ')}`);
-    }
-    if (leader.downfallAndLegacy) {
-      parts.push(`Ocaso y desenlace: ${leader.downfallAndLegacy}`);
+      parts.push(`Máxima fundacional: «${leader.iconQuote}».`);
     }
     if (leader.historicalVerdict) {
       parts.push(`Veredicto histórico: ${leader.historicalVerdict}`);
@@ -682,51 +670,37 @@ const LoreAtlas: React.FC = () => {
 
   const buildDeckSectorNarration = (sector: any): string => {
     const parts: string[] = [];
-    parts.push(`Topología de Estación Humanidad: Sector ${sector.name}, abarcando las cubiertas ${sector.deckRange}, con un total de ${sector.deckCount} niveles habitables.`);
-    parts.push(`Condición estructural: Estado ${sector.status}. Nivel de energía asignada: ${sector.energyPct}. Rango térmico medio: ${sector.tempRange}.`);
-    if (sector.description) parts.push(`Descripción estructural: ${sector.description}`);
-    if (sector.socialLife) parts.push(`Vida social y habitabilidad: ${sector.socialLife}`);
+    parts.push(`Topología de Estación Humanidad: Sector ${sector.name}, cubiertas ${sector.deckRange}, con ${sector.deckCount} niveles habitables.`);
+    parts.push(`Estado operativo: ${sector.status}. Nivel de energía asignada: ${sector.energyPct}.`);
+    if (sector.description) parts.push(sector.description);
     if (sector.notableLocations && Array.isArray(sector.notableLocations) && sector.notableLocations.length > 0) {
-      parts.push(`Enclaves notables: ${sector.notableLocations.join(', ')}.`);
+      parts.push(`Enclaves notables: ${sector.notableLocations.slice(0, 3).join(', ')}.`);
     }
     return parts.join(' ');
   };
 
   const buildCharacterNarration = (char: any): string => {
     const parts: string[] = [];
-    parts.push(`Dossier clasificado de personaje: ${char.name}.`);
-    if (char.alias) parts.push(`Conocido en los anillos como ${char.alias}.`);
-    parts.push(`Edad: ${char.ageYears} años terrestres (${char.ageNemas} nemas). Origen: Cubierta ${char.deckOrigin}. Rol: ${char.role}. Facción: ${char.faction}.`);
+    parts.push(`Dossier canónico: ${char.name}, conocido como ${char.alias}.`);
+    parts.push(`Origen: Cubierta ${char.deckOrigin}. Rol: ${char.role}. Facción: ${char.faction}.`);
     if (char.quote) parts.push(`Registro personal: «${char.quote}».`);
-    if (char.physicalDesc) parts.push(`Rasgos distintivos: ${char.physicalDesc}`);
-    if (char.psychology) parts.push(`Perfil psicológico: ${char.psychology}`);
     if (char.moralDilemma) parts.push(`Dilema moral: ${char.moralDilemma}`);
-    if (char.weaponOrTool) parts.push(`Instrumento o arma de firma: ${char.weaponOrTool}`);
-    if (char.arcSummary) parts.push(`Arco narrativo: ${char.arcSummary}`);
     return parts.join(' ');
   };
 
   const buildVortexNarration = (vortex: any): string => {
     const parts: string[] = [];
-    parts.push(`Vórtice canónico número ${vortex.number}: ${vortex.name}. En dialecto transversal: ${vortex.transversalName}, que se traduce como ${vortex.translation}.`);
+    parts.push(`Vórtice canónico número ${vortex.number}: ${vortex.name}, traducido en transversal como ${vortex.translation}.`);
     if (vortex.quote) parts.push(`Máxima del vórtice: «${vortex.quote}».`);
     if (vortex.corePrinciple) parts.push(`Principio ontológico: ${vortex.corePrinciple}`);
-    if (vortex.description) parts.push(`Exégesis filosófica: ${vortex.description}`);
-    if (vortex.symbolMeaning) parts.push(`Simbología y trazo sagrado Tael'im: ${vortex.symbolMeaning}`);
-    if (vortex.factionAssociation) parts.push(`Asociación doctrinal: ${vortex.factionAssociation}`);
     return parts.join(' ');
   };
 
   const buildThalvusWorkNarration = (work: any): string => {
     const parts: string[] = [];
-    parts.push(`Tratado filosófico de Joren Thalvus: ${work.title}. Género: ${work.genre}. Redactado en el año ${work.year} de la travesía.`);
-    if (work.summary) parts.push(`Resumen de la tesis: ${work.summary}`);
+    parts.push(`Tratado de Joren Thalvus: ${work.title}, año ${work.year}.`);
+    if (work.summary) parts.push(work.summary);
     if (work.quote) parts.push(`Aforismo central: «${work.quote}».`);
-    if (work.keyConcepts && Array.isArray(work.keyConcepts) && work.keyConcepts.length > 0) {
-      const conceptsStr = work.keyConcepts.map((c: any) => `${c.name}: ${c.description}`).join('. ');
-      parts.push(`Nodos conceptuales clave: ${conceptsStr}`);
-    }
-    if (work.impact) parts.push(`Impacto histórico en la sociedad: ${work.impact}`);
     return parts.join(' ');
   };
 

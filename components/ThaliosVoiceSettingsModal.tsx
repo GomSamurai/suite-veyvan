@@ -235,7 +235,35 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Opción 1: Kokoro-82M ONNX (POR DEFECTO) */}
+                  {/* Opción 1: Web Speech + DSP (RECOMENDADO / INSTANTÁNEO) */}
+                  <div
+                    onClick={() => handleUpdate({ engine: 'web-speech' })}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      config.engine === 'web-speech'
+                        ? 'bg-cyan-500/15 border-cyan-400 text-white shadow-[0_0_20px_rgba(34,211,238,0.3)]'
+                        : 'bg-slate-900/60 border-white/5 text-slate-400 hover:border-cyan-500/30 hover:text-slate-200'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-mono text-xs font-bold uppercase text-cyan-400 flex items-center gap-1.5">
+                          <span>Web Speech DSP</span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                            Instantáneo
+                          </span>
+                        </span>
+                        {config.engine === 'web-speech' && <Check size={14} className="text-cyan-400" />}
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                        Respuesta instantánea (0 ms) sin esperas de cálculo. Habla directamente de forma continua con las voces nativas del sistema procesadas por el filtro cuántico.
+                      </p>
+                    </div>
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-950/90 text-cyan-300 border border-cyan-500/40 mt-3 inline-block w-fit font-bold shadow-[0_0_8px_rgba(34,211,238,0.25)]">
+                      ★ Recomendado / Cero Esperas
+                    </span>
+                  </div>
+
+                  {/* Opción 2: Kokoro-82M ONNX (LOCAL NEURAL) */}
                   <div
                     onClick={() => handleUpdate({ engine: 'kokoro-onnx' })}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
@@ -249,21 +277,21 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                         <span className="font-mono text-xs font-bold uppercase text-emerald-400 flex items-center gap-1.5">
                           <span>Kokoro-82M</span>
                           <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">
-                            ONNX
+                            ONNX Neural
                           </span>
                         </span>
                         {config.engine === 'kokoro-onnx' && <Check size={14} className="text-emerald-400" />}
                       </div>
                       <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                        Inferencia neuronal 100% local en tu navegador. Timbre canónico y oracular de Thalios Solaris con calidad de estudio.
+                        Inferencia neuronal 100% local en tu navegador. Timbre oracular de estudio (Santa Castellano / Alex / Dora). Requiere tiempo de cómputo en CPU.
                       </p>
                     </div>
                     <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-500/40 mt-3 inline-block w-fit font-bold shadow-[0_0_8px_rgba(16,185,129,0.25)]">
-                      ★ Predeterminado / Local
+                      Calidad Estudio / Local
                     </span>
                   </div>
 
-                  {/* Opción 2: Gemini Multimodal Studio */}
+                  {/* Opción 3: Gemini Multimodal Studio */}
                   <div
                     onClick={() => handleUpdate({ engine: 'gemini-voice' })}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
@@ -283,29 +311,6 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                     </div>
                     <span className={`text-[9px] font-mono px-2 py-0.5 rounded border mt-3 inline-block w-fit ${hasApiKey ? 'bg-purple-950/80 text-purple-300 border-purple-500/30' : 'bg-amber-950/80 text-amber-300 border-amber-500/30'}`}>
                       {hasApiKey ? 'Clave Activa' : 'Requiere API Key'}
-                    </span>
-                  </div>
-
-                  {/* Opción 3: Web Speech + DSP */}
-                  <div
-                    onClick={() => handleUpdate({ engine: 'web-speech' })}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      config.engine === 'web-speech'
-                        ? 'bg-cyan-500/15 border-cyan-400 text-white shadow-[0_0_15px_rgba(34,211,238,0.2)]'
-                        : 'bg-slate-900/60 border-white/5 text-slate-400 hover:border-cyan-500/30 hover:text-slate-200'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-mono text-xs font-bold uppercase text-cyan-400">Web Speech DSP</span>
-                        {config.engine === 'web-speech' && <Check size={14} className="text-cyan-400" />}
-                      </div>
-                      <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                        Voces sintéticas básicas instaladas en el sistema operativo procesadas por el filtro cuántico Web Audio.
-                      </p>
-                    </div>
-                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 mt-3 inline-block w-fit">
-                      Nativo SO / Sintético
                     </span>
                   </div>
                 </div>
