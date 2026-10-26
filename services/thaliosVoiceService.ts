@@ -914,9 +914,23 @@ class ThaliosVoiceService {
       this.setIntercomStatic(true);
 
       if (engine === 'gemini-voice') {
-        await this.speakWithGemini(cleanText, options);
+        try {
+          await this.speakWithGemini(cleanText, options);
+        } catch (geminiErr: any) {
+          console.warn('Gemini Voice no pudo sintetizar el audio, recurriendo a Web Speech con filtro DSP:', geminiErr);
+          this.state.activeEngine = 'web-speech';
+          this.notifyListeners();
+          await this.speakWithWebSpeech(cleanText, options);
+        }
       } else if (engine === 'kokoro-onnx') {
-        await this.speakWithKokoro(cleanText, options);
+        try {
+          await this.speakWithKokoro(cleanText, options);
+        } catch (kokoroErr: any) {
+          console.warn('Kokoro ONNX falló o modelo inaccesible, recurriendo a Web Speech:', kokoroErr);
+          this.state.activeEngine = 'web-speech';
+          this.notifyListeners();
+          await this.speakWithWebSpeech(cleanText, options);
+        }
       } else {
         await this.speakWithWebSpeech(cleanText, options);
       }
@@ -1648,6 +1662,18 @@ class ThaliosVoiceService {
   // ---------------------------------------------------------------------------
   public getState(): ThaliosVoiceState {
     return { ...this.state };
+  }
+
+  public isSpeaking(): boolean {
+    return Boolean(this.state.isSpeaking);
+  }
+
+  public isPaused(): boolean {
+    return Boolean(this.state.isPaused);
+  }
+
+  public isLoading(): boolean {
+    return Boolean(this.state.isLoading);
   }
 
   public subscribe(listener: (state: ThaliosVoiceState) => void): () => void {

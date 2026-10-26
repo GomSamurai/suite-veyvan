@@ -311,6 +311,14 @@ const CalligramStudio: React.FC = () => {
     }
   }, [targetCalligramExpression]);
 
+  // Sincronizar estado reactivo de locución con la Voz de Thalios
+  useEffect(() => {
+    const unsub = thaliosVoice.subscribe((s) => {
+      setIsPlayingSound(s.isSpeaking);
+    });
+    return () => unsub();
+  }, []);
+
   // Guardar fórmulas canónicas en localStorage
   const saveFormulasToStorage = (updated: CanonicalFormulaItem[]) => {
     setCanonicalFormulas(updated);
@@ -930,17 +938,50 @@ const CalligramStudio: React.FC = () => {
     }));
   };
 
-  // Reproducir enunciación sagrada de la frase con la Voz de Thalios
-  const handlePlaySound = async () => {
+  // Reproducir enunciación ceremonial de la frase con la Voz de Thalios (Gemini / Kokoro / Web Speech)
+  const handlePronounceExpression = async () => {
     if (thaliosVoice.isSpeaking()) {
       thaliosVoice.stop();
       setIsPlayingSound(false);
       return;
     }
+    const textToSpeak = expression.trim();
+    if (!textToSpeak) return;
+
     setIsPlayingSound(true);
     try {
-      await thaliosVoice.speak(expression, {
-        title: `Fórmula Tael'vohn // ${expression.slice(0, 36)}`,
+      await thaliosVoice.speak(textToSpeak, {
+        title: `Fórmula Tael'vohn // ${textToSpeak.slice(0, 36)}`,
+        onEnd: () => setIsPlayingSound(false),
+        onError: (err) => {
+          console.error("Error al pronunciar fórmula:", err);
+          setIsPlayingSound(false);
+        },
+      });
+    } catch (err) {
+      console.error("Error al sintetizar:", err);
+      setIsPlayingSound(false);
+    }
+  };
+
+  // Reproducir acorde de resonancia fónica y enunciación sagrada
+  const handlePlayResonance = async () => {
+    if (thaliosVoice.isSpeaking()) {
+      thaliosVoice.stop();
+      setIsPlayingSound(false);
+      return;
+    }
+    const textToSpeak = expression.trim();
+    if (!textToSpeak) return;
+
+    setIsPlayingSound(true);
+    // Tocar el acorde armónico característico de los fonemas
+    playWordResonance(textToSpeak);
+
+    // Y pronunciar con la voz sagrada de Thalios
+    try {
+      await thaliosVoice.speak(textToSpeak, {
+        title: `Resonancia // ${textToSpeak.slice(0, 36)}`,
         onEnd: () => setIsPlayingSound(false),
         onError: () => setIsPlayingSound(false),
       });
@@ -948,6 +989,8 @@ const CalligramStudio: React.FC = () => {
       setIsPlayingSound(false);
     }
   };
+
+  const handlePlaySound = handlePronounceExpression;
 
   // Descargar SVG
   const handleDownloadSvg = () => {
@@ -1041,15 +1084,15 @@ const CalligramStudio: React.FC = () => {
           {/* Acciones Rápidas del Encabezado */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={handlePlaySound}
+              onClick={handlePlayResonance}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border border-white/10 text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
                 isPlayingSound 
                   ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.4)] animate-pulse' 
                   : 'bg-white/5 hover:bg-white/10 text-slate-300'
               }`}
-              title="Escuchar acorde fónico de la enunciación"
+              title="Escuchar acorde fónico y resonancia de la enunciación"
             >
-              <Volume2 size={14} />
+              <Volume2 size={14} className={isPlayingSound ? 'animate-bounce text-cyan-300' : ''} />
               <span>Resonancia</span>
             </button>
 
@@ -1118,7 +1161,7 @@ const CalligramStudio: React.FC = () => {
               className="flex-1 px-4 py-2.5 rounded-xl bg-black/60 border border-white/10 text-cyan-200 font-mono text-sm placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/60 transition-all"
             />
             <button
-              onClick={handlePlaySound}
+              onClick={handlePronounceExpression}
               className={`px-3.5 py-2.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
                 isPlayingSound
                   ? 'border-cyan-400 bg-cyan-950 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.4)] animate-pulse'
@@ -1126,7 +1169,7 @@ const CalligramStudio: React.FC = () => {
               }`}
               title="Escuchar enunciación de la fórmula sagrada con Voz Thalios"
             >
-              <Volume2 size={15} />
+              <Volume2 size={15} className={isPlayingSound ? 'animate-bounce text-cyan-300' : ''} />
               <span className="hidden sm:inline text-xs font-mono font-bold">Pronunciar</span>
             </button>
             <button
