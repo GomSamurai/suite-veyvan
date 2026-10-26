@@ -375,6 +375,57 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                     </div>
                   )}
 
+                  {/* Selector de Dialecto Fonético (Castellano vs Latam) */}
+                  <div className="p-3 rounded-xl bg-slate-950/70 border border-emerald-500/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-mono font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Waves size={13} className="text-emerald-400" />
+                        <span>Dialecto Fonético Neural</span>
+                      </label>
+                      <span className="text-[10px] font-mono text-emerald-400/80">
+                        {config.kokoroDialect === 'latam' ? 'Seseo Neutro' : 'Distinción Peninsular'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdate({ kokoroDialect: 'castellano' })}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          (config.kokoroDialect || 'castellano') === 'castellano'
+                            ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                            : 'bg-slate-900/60 border-white/5 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-mono text-xs font-bold text-emerald-300">Castellano (España)</span>
+                          {(config.kokoroDialect || 'castellano') === 'castellano' && <Check size={13} className="text-emerald-400" />}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-sans leading-tight">
+                          Distinción C/Z (θ), fonemas ibéricos sobrios y cero acento anglosajón.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdate({ kokoroDialect: 'latam' })}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          config.kokoroDialect === 'latam'
+                            ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                            : 'bg-slate-900/60 border-white/5 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-mono text-xs font-bold text-emerald-300">Español Neutro (Latam)</span>
+                          {config.kokoroDialect === 'latam' && <Check size={13} className="text-emerald-400" />}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-sans leading-tight">
+                          Seseo natural (s), articulación suave sin modulación peninsular.
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Catálogo Canónico de Voces Neuronales */}
                   <div>
                     <label className="text-xs font-mono font-bold text-emerald-300 uppercase tracking-wider block mb-2">
@@ -394,8 +445,13 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-xs font-bold text-white flex items-center gap-1.5">
                               {kv.name}
-                              {kv.id === 'am_fenrir' && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-mono font-bold">
+                              {(kv as any).isNativeSpanish && (
+                                <span className="text-[8px] px-1.5 py-0.2 rounded bg-amber-950/90 text-amber-300 border border-amber-500/40 font-mono font-bold">
+                                  ★ NATIVO ESPAÑOL
+                                </span>
+                              )}
+                              {kv.id === 'em_santa' && (
+                                <span className="text-[8px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-mono font-bold">
                                   CANÓNICO THALIOS
                                 </span>
                               )}

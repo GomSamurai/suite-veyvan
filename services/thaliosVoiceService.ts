@@ -16,6 +16,8 @@ export interface ThaliosVoiceConfig {
   geminiVoice: 'Charon' | 'Aoede' | 'Fenrir' | 'Kore' | 'Puck';
   // Nombre de voz para Kokoro-82M ONNX
   kokoroVoice: string;
+  // Dialecto fonético para Kokoro: 'castellano' (peninsular ceceante) o 'latam' (seseo neutro)
+  kokoroDialect: 'castellano' | 'latam';
   // Parámetros acústicos
   rate: number;       // 0.7x (solemne, pausado) a 1.4x (rápido). Canónico: 0.92
   pitch: number;      // 0.6 (grave, abismal) a 1.4 (agudo). Canónico: 0.88
@@ -44,24 +46,221 @@ export interface ThaliosVoiceState {
 }
 
 export const VALID_KOKORO_VOICES = [
-  // Voces Masculinas
-  { id: 'am_fenrir', name: 'Fenrir', category: 'Masculino (Canónico Thalios)', desc: 'Grave, solemne y marcial. Timbre oracular oficial de Thalios Solaris.' },
-  { id: 'am_adam', name: 'Adam', category: 'Masculino (Rector)', desc: 'Autoritaria, pausada y firme. Dirección de la Estación.' },
-  { id: 'am_michael', name: 'Michael', category: 'Masculino (Técnico)', desc: 'Moderna, neutral y cristalina. Protocolos cuánticos.' },
-  { id: 'am_santa', name: 'Santa', category: 'Masculino (Baja Frecuencia)', desc: 'Profunda y densa. Resonancia del reactor principal.' },
-  { id: 'bm_george', name: 'George', category: 'Masculino (Británico Solemne)', desc: 'Tono litúrgico, templado y ceremonioso.' },
-  { id: 'bm_fable', name: 'Fable', category: 'Masculino (Cronista)', desc: 'Cadencia de narración épica para bitácoras y lore histórico.' },
-  // Voces Femeninas
-  { id: 'af_bella', name: 'Bella', category: 'Femenino (Cálida)', desc: 'Gran inteligibilidad y calidez. Resonancia cristalina.' },
-  { id: 'af_heart', name: 'Heart', category: 'Femenino (Emotiva)', desc: 'Máxima calidad neural A ❤️. Suavidad orgánica de alta fidelidad.' },
-  { id: 'af_nicole', name: 'Nicole', category: 'Femenino (Táctica)', desc: 'Comunicaciones dinámicas y avisos de interfaz de cabina.' },
-  { id: 'af_kore', name: 'Kore', category: 'Femenino (Archivista)', desc: 'Impasible y analítica. Lectura enciclopédica de datos.' },
-  { id: 'af_sky', name: 'Sky', category: 'Femenino (Oráculo)', desc: 'Etérea y serena. Proyecciones oraculares del Émulo.' },
-  { id: 'bf_emma', name: 'Emma', category: 'Femenino (Aristocrática)', desc: 'Tono formal británico, dicción impecable del alto mando.' },
+  // --- VOCES NATIVAS EN ESPAÑOL (MÁXIMA NATURALIDAD / SIN ACENTO ANGLOSAJÓN) ---
+  { 
+    id: 'em_santa', 
+    name: 'Santa', 
+    category: 'Español Nativo (Grave)', 
+    desc: 'Timbre profundo, solemne y pausado. Inferencia nativa en español, ideal para Thalios Solaris.',
+    isNativeSpanish: true
+  },
+  { 
+    id: 'em_alex', 
+    name: 'Alex', 
+    category: 'Español Nativo (Rector)', 
+    desc: 'Autoritaria, limpia y articulada. Gran solemnidad institucional de puente de mando.',
+    isNativeSpanish: true
+  },
+  { 
+    id: 'ef_dora', 
+    name: 'Dora', 
+    category: 'Español Nativo (Femenino)', 
+    desc: 'Voz femenina formal, cristalina y oracular. Pronunciación natural en castellano.',
+    isNativeSpanish: true
+  },
+
+  // --- VOCES NEURONALES CON ADAPTACIÓN FONÉTICA CASTELLANA ---
+  { 
+    id: 'am_fenrir', 
+    name: 'Fenrir', 
+    category: 'Masculino (Canónico Thalios)', 
+    desc: 'Grave, abismal y marcial. Fonética castellana aplicada sobre resonancia cuántica.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'am_adam', 
+    name: 'Adam', 
+    category: 'Masculino (Rector)', 
+    desc: 'Firme y serena. Cadencia protocolaria de Estación.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'am_michael', 
+    name: 'Michael', 
+    category: 'Masculino (Técnico)', 
+    desc: 'Clara, analítica y neutral. Ideal para bitácoras.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'bm_george', 
+    name: 'George', 
+    category: 'Masculino (Litúrgico)', 
+    desc: 'Cadencia solemne y ceremoniosa.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'bm_fable', 
+    name: 'Fable', 
+    category: 'Masculino (Cronista)', 
+    desc: 'Tono narrativo épico para crónicas y fichas de lore.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'af_bella', 
+    name: 'Bella', 
+    category: 'Femenino (Cálida)', 
+    desc: 'Articulación superior Grado A con fonemas en español.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'af_heart', 
+    name: 'Heart', 
+    category: 'Femenino (Emotiva)', 
+    desc: 'Máxima calidad neural A ❤️. Suavidad orgánica.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'af_kore', 
+    name: 'Kore', 
+    category: 'Femenino (Archivista)', 
+    desc: 'Impasible y analítica. Registro enciclopédico.',
+    isNativeSpanish: false
+  },
+  { 
+    id: 'af_sky', 
+    name: 'Sky', 
+    category: 'Femenino (Oráculo)', 
+    desc: 'Etérea y mística. Proyección de interfaz.',
+    isNativeSpanish: false
+  },
 ] as const;
 
 export type KokoroVoiceId = typeof VALID_KOKORO_VOICES[number]['id'];
 export const VALID_KOKORO_VOICE_IDS = new Set(VALID_KOKORO_VOICES.map(v => v.id));
+
+/**
+ * Fonetizador fonémico para Kokoro-82M (Español Peninsular / Castellano / Neutro)
+ * Transforma texto ortográfico en español a cadenas de fonemas IPA estándar del vocabulario de Kokoro.
+ * Elimina por completo el acento anglosajón del fonetizador en inglés por defecto.
+ */
+export function spanishToIpa(text: string, mode: 'castellano' | 'latam' = 'castellano'): string {
+  if (!text) return '';
+
+  // 1. Normalización de números comunes y términos diegéticos
+  let t = text
+    .replace(/\b1\b/g, 'uno')
+    .replace(/\b2\b/g, 'dos')
+    .replace(/\b3\b/g, 'tres')
+    .replace(/\b4\b/g, 'cuatro')
+    .replace(/\b5\b/g, 'cinco')
+    .replace(/\b6\b/g, 'seis')
+    .replace(/\b7\b/g, 'siete')
+    .replace(/\b8\b/g, 'ocho')
+    .replace(/\b9\b/g, 'nueve')
+    .replace(/\b10\b/g, 'diez')
+    .replace(/\b320\b/g, 'trescientas veinte')
+    .replace(/\b100\b/g, 'cien')
+    .replace(/\bthalios\b/gi, 'talios')
+    .replace(/\bth/gi, 't');
+
+  t = t.replace(/[«»“”]/g, '"').replace(/[‘’]/g, "'");
+
+  const CLITICS = new Set([
+    'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 
+    'de', 'del', 'a', 'al', 'en', 'con', 'por', 'sin', 
+    'y', 'e', 'o', 'u', 'que', 'se', 'su', 'sus', 'mi', 'mis', 'tu', 'tus'
+  ]);
+
+  const tokens = t.split(/([a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+)/);
+
+  return tokens.map(tok => {
+    if (!tok || !/[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]/.test(tok)) {
+      return tok;
+    }
+
+    let w = tok.toLowerCase();
+    const isClitic = CLITICS.has(w);
+
+    // Grupos consonánticos dígrafos
+    w = w.replace(/ch/g, 'ʧ');
+    w = w.replace(/ll/g, 'ʝ');
+    w = w.replace(/qu([eéií])/g, 'k$1');
+    w = w.replace(/gü([eéií])/g, 'ɡw$1');
+    w = w.replace(/gu([eéií])/g, 'ɡ$1');
+
+    // X siempre como ks
+    w = w.replace(/x/g, 'ks');
+
+    // C y Z según modo fonético
+    if (mode === 'castellano') {
+      w = w.replace(/c([eéií])/g, 'θ$1');
+      w = w.replace(/z/g, 'θ');
+    } else {
+      w = w.replace(/c([eéií])/g, 's$1');
+      w = w.replace(/z/g, 's');
+    }
+    w = w.replace(/c/g, 'k');
+
+    // G y J
+    w = w.replace(/g([eéií])/g, 'x$1');
+    w = w.replace(/j/g, 'x');
+    w = w.replace(/g/g, 'ɡ');
+
+    // H muda (excepto ch previamente convertida a ʧ)
+    w = w.replace(/h/g, '');
+
+    // Ñ
+    w = w.replace(/ñ/g, 'ɲ');
+
+    // V -> b
+    w = w.replace(/v/g, 'b');
+
+    // Y al final de palabra como semivocal j, o ante vocal como ʝ
+    w = w.replace(/y([aeiouáéíóú])/g, 'ʝ$1');
+    w = w.replace(/y\b/g, 'j');
+    w = w.replace(/y/g, 'i');
+
+    // R vibrante múltiple (trill) vs simple (tap)
+    w = w.replace(/rr/g, 'R');
+    w = w.replace(/^r/, 'R');
+    w = w.replace(/([nls])r/g, '$1R');
+    w = w.replace(/([aeiouáéíóú])r([aeiouáéíóú])/g, '$1ɾ$2');
+    w = w.replace(/r/g, 'ɾ');
+    w = w.replace(/R/g, 'r');
+    w = w.replace(/^ɾ/, 'r');
+
+    // Diptongos con semivocales
+    w = w.replace(/i([aeouáéóú])/g, 'j$1');
+    w = w.replace(/u([aeoáéíó])/g, 'w$1');
+    w = w.replace(/([aeo])i/g, '$1j');
+    w = w.replace(/([aeo])u/g, '$1w');
+
+    // Acentuación y tildes gráficas
+    const hasTilde = /[áéíóú]/.test(w);
+    w = w.replace(/á/g, 'ˈa');
+    w = w.replace(/é/g, 'ˈe');
+    w = w.replace(/í/g, 'ˈi');
+    w = w.replace(/ó/g, 'ˈo');
+    w = w.replace(/ú/g, 'ˈu');
+
+    if (!hasTilde && !isClitic) {
+      const lastChar = tok.slice(-1).toLowerCase();
+      const endsInVowelOrNS = /[aeiouñns]/.test(lastChar);
+      const vowels = [...w.matchAll(/[aeiou]/g)];
+
+      if (vowels.length > 1) {
+        const targetVowelIdx = endsInVowelOrNS ? vowels.length - 2 : vowels.length - 1;
+        const vPos = vowels[targetVowelIdx].index;
+        w = w.slice(0, vPos) + 'ˈ' + w.slice(vPos);
+      } else if (vowels.length === 1 && tok.length > 2) {
+        const vPos = vowels[0].index;
+        w = w.slice(0, vPos) + 'ˈ' + w.slice(vPos);
+      }
+    }
+
+    return w;
+  }).join('');
+}
 
 const STORAGE_KEY_V2 = 'thalios_voice_config_v2';
 const STORAGE_KEY_V1 = 'thalios_voice_config_v1';
@@ -70,7 +269,8 @@ export const DEFAULT_VOICE_CONFIG: ThaliosVoiceConfig = {
   engine: 'kokoro-onnx',
   voiceUri: '',
   geminiVoice: 'Charon',
-  kokoroVoice: 'am_fenrir',
+  kokoroVoice: 'em_santa',
+  kokoroDialect: 'castellano',
   rate: 0.95,
   pitch: 0.88,
   volume: 0.90,
@@ -157,8 +357,12 @@ class ThaliosVoiceService {
       const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
       if (rawV2) {
         const parsed = JSON.parse(rawV2);
+        // Si no tenía voz o era fenrir por defecto previo, cambiar a em_santa para dicción nativa en español
         if (!parsed.kokoroVoice || !VALID_KOKORO_VOICE_IDS.has(parsed.kokoroVoice as any)) {
-          parsed.kokoroVoice = 'am_fenrir';
+          parsed.kokoroVoice = 'em_santa';
+        }
+        if (!parsed.kokoroDialect) {
+          parsed.kokoroDialect = 'castellano';
         }
         return { ...DEFAULT_VOICE_CONFIG, ...parsed };
       }
@@ -167,9 +371,10 @@ class ThaliosVoiceService {
       const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
       if (rawV1) {
         const parsed = JSON.parse(rawV1);
-        // Migrar forzando Kokoro-82M como motor por defecto canónico
+        // Migrar forzando Kokoro-82M como motor por defecto canónico en español
         parsed.engine = 'kokoro-onnx';
-        parsed.kokoroVoice = 'am_fenrir';
+        parsed.kokoroVoice = 'em_santa';
+        parsed.kokoroDialect = 'castellano';
         const migrated = { ...DEFAULT_VOICE_CONFIG, ...parsed };
         localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(migrated));
         return migrated;
@@ -658,13 +863,22 @@ class ThaliosVoiceService {
 
       // Limitar longitud de texto por bloque para mantener la respuesta fluida
       const cleanSnippet = text.length > 800 ? text.slice(0, 800) + '...' : text;
-      
-      let voiceKey = this.config.kokoroVoice || 'am_fenrir';
+
+      let voiceKey = this.config.kokoroVoice || 'em_santa';
       if (!VALID_KOKORO_VOICE_IDS.has(voiceKey as any)) {
-        voiceKey = 'am_fenrir';
+        voiceKey = 'em_santa';
       }
 
-      const audio = await tts.generate(cleanSnippet, {
+      // 1. Convertir texto en español a fonemas IPA castellanos reales
+      // Esto elimina por completo el acento americano/inglés y hace que hable en perfecto castellano
+      const dialect = this.config.kokoroDialect || 'castellano';
+      const ipa = spanishToIpa(cleanSnippet, dialect);
+
+      // 2. Tokenizar directamente la transcripción fonética IPA en Kokoro
+      const { input_ids } = tts.tokenizer(ipa, { truncation: true });
+
+      // 3. Generar audio directamente mediante generate_from_ids con la voz nativa o adaptada
+      const audio = await tts.generate_from_ids(input_ids, {
         voice: voiceKey,
         speed: Math.max(0.7, Math.min(1.3, this.config.rate || 1.0))
       });
