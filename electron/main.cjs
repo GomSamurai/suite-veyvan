@@ -4,6 +4,14 @@ const path = require('path');
 // Permite reproducción fluida de síntesis de audio Web Audio sin restricciones de gesto de usuario previo
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
+// Aceleración por Hardware GPU y WebGPU (NVIDIA RTX / DirectX 12 / Vulkan)
+// Permite que modelos ONNX neuronales como Kokoro-82M ejecuten tensores en la GPU física a máxima velocidad
+app.commandLine.appendSwitch('enable-unsafe-webgpu');
+app.commandLine.appendSwitch('enable-features', 'WebGPU');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+
 let mainWindow = null;
 let horocronoWindow = null;
 let miniHudWindow = null;
