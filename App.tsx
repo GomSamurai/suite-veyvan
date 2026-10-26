@@ -11,6 +11,8 @@ import CalligramStudio from './components/CalligramStudio';
 import LoreAtlas from './components/LoreAtlas';
 import { useLexicon } from './context/LexiconContext';
 import HorocronoRoot from './components/horocrono/HorocronoRoot';
+import { ThaliosAudioHUD } from './components/ThaliosAudioHUD';
+import { ThaliosVoiceSettingsModal } from './components/ThaliosVoiceSettingsModal';
 
 class SafeBoundary extends React.Component<{ children: React.ReactNode; name: string }, { hasError: boolean; error: string }> {
   constructor(props: any) {
@@ -72,6 +74,9 @@ const App: React.FC = () => {
     traceInTaelim
   } = useLexicon();
 
+  // Gestión de Calibración de Voz y Síntesis de Thalios Solaris
+  const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = React.useState(false);
+
   // Gestión de Modo Solar (Claro) / Modo Vacío (Oscuro)
   const [theme, setTheme] = React.useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
@@ -117,6 +122,7 @@ const App: React.FC = () => {
           onImport={handleImport}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenVoiceSettings={() => setIsVoiceSettingsOpen(true)}
         />
       </div>
       
@@ -184,6 +190,15 @@ const App: React.FC = () => {
             <span className="text-emerald-500 opacity-80 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)] ml-4">● SINTAXIS VOS ACTIVA</span>
         </div>
       </footer>
+
+      {/* Mini-HUD Flotante de Audio y Espectrograma de Thalios Solaris */}
+      <ThaliosAudioHUD onOpenSettings={() => setIsVoiceSettingsOpen(true)} />
+
+      {/* Modal de Configuración Integral del Núcleo de Voz */}
+      <ThaliosVoiceSettingsModal 
+        isOpen={isVoiceSettingsOpen} 
+        onClose={() => setIsVoiceSettingsOpen(false)} 
+      />
     </div>
   );
 };

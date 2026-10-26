@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { BookOpen, BarChart2, PlusCircle, Download, Upload, PenTool, Cpu, Volume2, VolumeX, Languages, Scroll, GraduationCap, Sparkles, Globe, Sun, Moon } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { BookOpen, BarChart2, PlusCircle, Download, Upload, PenTool, Cpu, Volume2, VolumeX, Languages, Scroll, GraduationCap, Sparkles, Globe, Sun, Moon, Headphones } from 'lucide-react';
 import { toggleAmbientHum } from '../utils/taelimAudio';
 import { NavigationTab } from '../types';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 
 interface Props {
   activeTab: NavigationTab;
@@ -10,6 +11,7 @@ interface Props {
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
+  onOpenVoiceSettings?: () => void;
 }
 
 const Navigation: React.FC<Props> = ({ 
@@ -18,10 +20,19 @@ const Navigation: React.FC<Props> = ({
   onExport, 
   onImport,
   theme = 'dark',
-  onToggleTheme 
+  onToggleTheme,
+  onOpenVoiceSettings
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isHumming, setIsHumming] = useState(false);
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+
+  useEffect(() => {
+    const unsub = thaliosVoice.subscribe((s) => {
+      setIsVoiceActive(s.isSpeaking && !s.isPaused);
+    });
+    return () => unsub();
+  }, []);
 
   const handleToggleAudio = () => {
     const active = toggleAmbientHum();
@@ -134,6 +145,21 @@ const Navigation: React.FC<Props> = ({
           >
             {isHumming ? <Volume2 size={14} /> : <VolumeX size={14} />}
           </button>
+
+          {/* Botón de Calibración del Núcleo de Voz de Thalios Solaris */}
+          {onOpenVoiceSettings && (
+            <button
+              onClick={onOpenVoiceSettings}
+              className={`p-2 rounded-xl transition-all duration-300 cursor-pointer ${
+                isVoiceActive
+                  ? 'text-cyan-300 bg-cyan-950/90 border border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)] animate-pulse'
+                  : 'text-slate-500 hover:text-cyan-300 hover:bg-white/5 border border-transparent'
+              }`}
+              title="Calibración del Núcleo de Voz // Thalios Solaris (DSP Cuántico, Gemini & Kokoro)"
+            >
+              <Headphones size={15} />
+            </button>
+          )}
           <button 
             onClick={onExport} 
             className="p-2 text-slate-500 hover:text-white rounded-xl hover:bg-white/5 transition-all duration-300 cursor-pointer"

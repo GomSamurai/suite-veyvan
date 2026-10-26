@@ -45,7 +45,9 @@ import {
   CheckCircle2,
   Plus,
   Pin,
-  ExternalLink
+  ExternalLink,
+  Headphones,
+  Square
 } from 'lucide-react';
 import { 
   STATION_GLOBAL_METRICS, 
@@ -84,6 +86,7 @@ import LoreEditModal from './LoreEditModal';
 import AuthorNotesEcosystem from './AuthorNotesEcosystem';
 import { playWordResonance } from '../utils/taelimAudio';
 import { getAiClient, getGeminiModel } from '../services/geminiService';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 
 declare global {
   interface Window {
@@ -612,6 +615,57 @@ const LoreAtlas: React.FC = () => {
   ]);
   const [isOracleThinking, setIsOracleThinking] = useState<boolean>(false);
 
+  // Estados de Síntesis Vocal de Thalios Solaris
+  const [activeSpokenText, setActiveSpokenText] = useState<string | null>(null);
+  const [activeSpokenMessageIdx, setActiveSpokenMessageIdx] = useState<number | null>(null);
+  const [autoNarrate, setAutoNarrate] = useState<boolean>(() => thaliosVoice.getConfig().autoNarrateOracle);
+
+  useEffect(() => {
+    const unsub = thaliosVoice.subscribe((s) => {
+      if (!s.isSpeaking && !s.isPaused) {
+        setActiveSpokenText(null);
+        setActiveSpokenMessageIdx(null);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleToggleSpeakLore = (title: string, category: string, summary: string, extra?: string) => {
+    const id = `${title}_${category}`;
+    if (activeSpokenText === id && thaliosVoice.getState().isSpeaking) {
+      thaliosVoice.stop();
+      setActiveSpokenText(null);
+      return;
+    }
+    setActiveSpokenText(id);
+    const fullText = `${title}. Registro de ${category}. ${summary}. ${extra || ''}`;
+    thaliosVoice.speak(fullText, {
+      title: `Bitácora: ${title}`,
+      onEnd: () => setActiveSpokenText(null),
+      onError: () => setActiveSpokenText(null),
+    });
+  };
+
+  const handleToggleSpeakMessage = (text: string, idx: number) => {
+    if (activeSpokenMessageIdx === idx && thaliosVoice.getState().isSpeaking) {
+      thaliosVoice.stop();
+      setActiveSpokenMessageIdx(null);
+      return;
+    }
+    setActiveSpokenMessageIdx(idx);
+    thaliosVoice.speak(text, {
+      title: 'Oráculo Thalios Solaris // Respuesta Cuántica',
+      onEnd: () => setActiveSpokenMessageIdx(null),
+      onError: () => setActiveSpokenMessageIdx(null),
+    });
+  };
+
+  const handleToggleAutoNarrate = () => {
+    const next = !autoNarrate;
+    setAutoNarrate(next);
+    thaliosVoice.updateConfig({ autoNarrateOracle: next });
+  };
+
   // Manejar consulta al Oráculo (Thalios Solaris)
   const handleAskOracle = async (presetText?: string) => {
     const query = presetText || oracleQuery;
@@ -653,6 +707,12 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
             source: 'Oráculo Cuántico Thalios Solaris'
           }]);
           setIsOracleThinking(false);
+
+          if (thaliosVoice.getConfig().autoNarrateOracle) {
+            thaliosVoice.speak(aiText, {
+              title: 'Oráculo Thalios Solaris // Respuesta Cuántica'
+            });
+          }
           return;
         }
       } catch (err) {
@@ -662,20 +722,21 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
 
     // Respuesta de respaldo canónica infalible
     setTimeout(() => {
-      if (matched) {
-        setOracleLog(prev => [...prev, {
-          role: 'thalios',
-          text: matched.response,
-          source: matched.sourceDoc
-        }]);
-      } else {
-        setOracleLog(prev => [...prev, {
-          role: 'thalios',
-          text: `En los registros de mis 320 cubiertas, la cuestión «${userMessage}» resuena con los misterios del Reactor y las crónicas de los Alévoros. La Estación no es simplemente un receptáculo de metal de 20 km de altura; es un estado de la materia humana sometida a la presión del vacío. Consulta la sección de Topología de Cubiertas o el Dossier HAVA para desentrañar las ramificaciones de esta verdad.`,
-          source: 'Bancos de Memoria // Registro General 2952'
-        }]);
-      }
+      const respText = matched ? matched.response : `En los registros de mis 320 cubiertas, la cuestión «${userMessage}» resuena con los misterios del Reactor y las crónicas de los Alévoros. La Estación no es simplemente un receptáculo de metal de 20 km de altura; es un estado de la materia humana sometida a la presión del vacío. Consulta la sección de Topología de Cubiertas o el Dossier HAVA para desentrañar las ramificaciones de esta verdad.`;
+      const respSource = matched ? matched.sourceDoc : 'Bancos de Memoria // Registro General 2952';
+
+      setOracleLog(prev => [...prev, {
+        role: 'thalios',
+        text: respText,
+        source: respSource
+      }]);
       setIsOracleThinking(false);
+
+      if (thaliosVoice.getConfig().autoNarrateOracle) {
+        thaliosVoice.speak(respText, {
+          title: 'Oráculo Thalios Solaris // Respuesta Cuántica'
+        });
+      }
     }, 600);
   };
 
@@ -1034,6 +1095,27 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                     {selectedLeader.title}
                   </span>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleSpeakLore(selectedLeader.name, selectedLeader.title, selectedLeader.legacy, selectedLeader.historicalImpact)}
+                      className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        activeSpokenText === `${selectedLeader.name}_${selectedLeader.title}`
+                          ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
+                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                      }`}
+                      title={activeSpokenText === `${selectedLeader.name}_${selectedLeader.title}` ? "Detener transmisión" : "Escuchar bitácora de este líder narrada por Thalios"}
+                    >
+                      {activeSpokenText === `${selectedLeader.name}_${selectedLeader.title}` ? (
+                        <>
+                          <Square size={10} className="fill-current text-red-400" />
+                          <span>Detener</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 size={11} className="text-cyan-400" />
+                          <span>Escuchar Bitácora</span>
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={() => setEditingEntity({ type: 'leader', item: selectedLeader })}
                       className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.2)]"
@@ -1936,6 +2018,32 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => handleToggleSpeakLore(
+                        `Sector ${selectedDeckSector.name}`,
+                        `Cubiertas ${selectedDeckSector.deckRange}`,
+                        selectedDeckSector.description,
+                        `Atmósfera social: ${selectedDeckSector.socialAtmosphere}. Clima: ${selectedDeckSector.climate}. Temperatura: ${selectedDeckSector.tempRange}`
+                      )}
+                      className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        activeSpokenText?.startsWith(`Sector ${selectedDeckSector.name}`)
+                          ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
+                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                      }`}
+                      title={activeSpokenText?.startsWith(`Sector ${selectedDeckSector.name}`) ? "Detener transmisión" : "Escuchar informe de esta cubierta narrado por Thalios"}
+                    >
+                      {activeSpokenText?.startsWith(`Sector ${selectedDeckSector.name}`) ? (
+                        <>
+                          <Square size={10} className="fill-current text-red-400" />
+                          <span>Detener</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 size={11} className="text-cyan-400" />
+                          <span>Escuchar Registro</span>
+                        </>
+                      )}
+                    </button>
+                    <button
                       onClick={() => setEditingEntity({ type: 'deck', item: selectedDeckSector })}
                       className="px-2.5 py-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                       title="Editar Datos, Clima, Temperatura y Descripción de este Sector"
@@ -2092,6 +2200,32 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                     <span className="text-xs font-mono text-amber-300 italic">«{selectedCharacter.alias}»</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleSpeakLore(
+                        selectedCharacter.name,
+                        `Ficción ${selectedCharacter.faction}`,
+                        selectedCharacter.bio,
+                        `Cita célebre: ${selectedCharacter.quote}. Dilema moral: ${selectedCharacter.moralDilemma}`
+                      )}
+                      className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        activeSpokenText?.startsWith(selectedCharacter.name)
+                          ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
+                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                      }`}
+                      title={activeSpokenText?.startsWith(selectedCharacter.name) ? "Detener transmisión" : "Escuchar dossier biográfico narrado por Thalios"}
+                    >
+                      {activeSpokenText?.startsWith(selectedCharacter.name) ? (
+                        <>
+                          <Square size={10} className="fill-current text-red-400" />
+                          <span>Detener</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 size={11} className="text-cyan-400" />
+                          <span>Escuchar Dossier</span>
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={() => setEditingEntity({ type: 'character', item: selectedCharacter })}
                       className="px-2.5 py-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_10px_rgba(34,211,238,0.2)]"
@@ -2411,9 +2545,37 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                     </h3>
                     <span className="text-xs font-mono text-amber-300">«{selectedVortex.translation}»</span>
                   </div>
-                  <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-white/5 border border-white/10 text-slate-300">
-                    {selectedVortex.factionAssociation.split('/')[0]}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleSpeakLore(
+                        `Vórtice ${selectedVortex.number}: ${selectedVortex.name}`,
+                        selectedVortex.transversalName,
+                        selectedVortex.quote,
+                        `Núcleo filosófico: ${selectedVortex.philosophicalCore}. Asociación: ${selectedVortex.factionAssociation}`
+                      )}
+                      className={`px-2.5 py-1 rounded-xl border font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        activeSpokenText?.startsWith(`Vórtice ${selectedVortex.number}`)
+                          ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
+                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                      }`}
+                      title={activeSpokenText?.startsWith(`Vórtice ${selectedVortex.number}`) ? "Detener transmisión" : "Escuchar exégesis de este vórtice narrada por Thalios"}
+                    >
+                      {activeSpokenText?.startsWith(`Vórtice ${selectedVortex.number}`) ? (
+                        <>
+                          <Square size={10} className="fill-current text-red-400" />
+                          <span>Detener</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 size={11} className="text-cyan-400" />
+                          <span>Escuchar Vórtice</span>
+                        </>
+                      )}
+                    </button>
+                    <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-white/5 border border-white/10 text-slate-300">
+                      {selectedVortex.factionAssociation.split('/')[0]}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-cyan-950/20 border-l-2 border-cyan-500 text-xs font-mono text-cyan-200 italic leading-relaxed">
@@ -2480,9 +2642,37 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 </h3>
               </div>
             </div>
-            <span className="px-3 py-1 rounded-full text-xs font-mono uppercase bg-rose-950/80 border border-rose-500/50 text-rose-200 font-bold">
-              ESTADO: FASE FINAL DE EJECUCIÓN
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleToggleSpeakLore(
+                  'Dossier HAVA: Protocolo de Deriva Exotérmica 49-B',
+                  'Proyecto HAVA',
+                  'Clasificación Obsidiana. El frenado orbital frente a la gigante azul Phaetim desatará un pico monumental de radiación Gamma. Se alega que los polos deben actuar como disipadores de sacrificio. La Verdad Oculta: exterminio eugénico programado del 73% de la población periférica.',
+                  'Operación dirigida por la Protectora Veyvan y el Alto Consejo para purgar las cubiertas rebeldes antes de llegar a Protozeus.'
+                )}
+                className={`px-3 py-1 rounded-xl border text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  activeSpokenText?.startsWith('Dossier HAVA')
+                    ? 'bg-rose-500/30 border-rose-400 text-rose-100 shadow-[0_0_12px_rgba(244,63,94,0.4)] animate-pulse'
+                    : 'bg-rose-950/80 hover:bg-rose-900/80 border-rose-500/50 text-rose-300'
+                }`}
+                title={activeSpokenText?.startsWith('Dossier HAVA') ? "Detener transmisión" : "Escuchar informe confidencial narrado por Thalios"}
+              >
+                {activeSpokenText?.startsWith('Dossier HAVA') ? (
+                  <>
+                    <Square size={11} className="fill-current text-rose-400" />
+                    <span>Detener</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 size={12} className="text-rose-400" />
+                    <span>Transmitir Informe de Voz</span>
+                  </>
+                )}
+              </button>
+              <span className="px-3 py-1 rounded-full text-xs font-mono uppercase bg-rose-950/80 border border-rose-500/50 text-rose-200 font-bold">
+                ESTADO: FASE FINAL DE EJECUCIÓN
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-sans">
@@ -2555,9 +2745,37 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
           {/* Los Alévoros y las Fiestas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-6 rounded-3xl bg-slate-950/80 border border-white/10 space-y-3">
-              <span className="text-xs font-mono uppercase tracking-widest text-cyan-300 font-bold block">
-                Los Alévoros // El Voto Dun'Val'Thy
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono uppercase tracking-widest text-cyan-300 font-bold block">
+                  Los Alévoros // El Voto Dun'Val'Thy
+                </span>
+                <button
+                  onClick={() => handleToggleSpeakLore(
+                    'Los Alévoros y el Voto Dun\'Val\'Thy',
+                    'Castas de Estación Humanidad',
+                    'Casta de sirvientes-sacerdotes consagrados a la estética del Émulo. Su nombre proviene de Ael (Elevado) + Vor (Servir). Bajo el juramento sagrado Dun\'Val\'Thy ("El Silencio del Yo"), renuncian a la propiedad, a tener hijos y a amar a otra persona.',
+                    'Dreda Aran comete la mayor herejía de la estación al entregarse al amor clandestino con Komokaru.'
+                  )}
+                  className={`px-2 py-0.5 rounded-lg border text-[9px] font-mono flex items-center gap-1 transition-all cursor-pointer ${
+                    activeSpokenText?.startsWith('Los Alévoros')
+                      ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_8px_rgba(239,68,68,0.3)] animate-pulse'
+                      : 'bg-cyan-950/80 border-cyan-500/40 hover:bg-cyan-900/80 text-cyan-300 hover:text-white shadow-[0_0_8px_rgba(34,211,238,0.15)]'
+                  }`}
+                  title={activeSpokenText?.startsWith('Los Alévoros') ? "Detener transmisión" : "Escuchar registro antropológico sobre los Alévoros"}
+                >
+                  {activeSpokenText?.startsWith('Los Alévoros') ? (
+                    <>
+                      <Square size={9} className="fill-current text-red-400" />
+                      <span>Detener</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 size={10} className="text-cyan-400" />
+                      <span>Escuchar</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <p className="text-xs text-slate-300 font-sans leading-relaxed">
                 Casta de sirvientes-sacerdotes consagrados a la estética del Émulo. Su nombre proviene de <em>Ael</em> (Elevado) + <em>Vor</em> (Servir). Bajo el juramento sagrado <strong>Dun'Val'Thy</strong> ("El Silencio del Yo"), renuncian a la propiedad, a tener hijos (esterilidad químico-ritual) y a amar a otra persona. Dreda Aran comete herejía al amar a Komokaru.
               </p>
@@ -2728,14 +2946,30 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                 </span>
               </div>
             </div>
-            <span className="text-[9px] font-mono text-emerald-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>NÚCLEO ONLINE</span>
-            </span>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleToggleAutoNarrate}
+                className={`px-2.5 py-1 rounded-xl border text-[10px] font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
+                  autoNarrate 
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.25)]' 
+                    : 'bg-slate-900 border-white/10 text-slate-400 hover:text-slate-200'
+                }`}
+                title={autoNarrate ? "Lectura automática de respuestas activa. Clic para desactivar" : "Activar lectura automática en voz alta de las respuestas"}
+              >
+                <Zap size={11} className={autoNarrate ? "text-cyan-400 animate-pulse" : "text-slate-500"} />
+                <span>Auto-narrar: {autoNarrate ? 'ON' : 'OFF'}</span>
+              </button>
+
+              <span className="text-[9px] font-mono text-emerald-400 flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>NÚCLEO ONLINE</span>
+              </span>
+            </div>
           </div>
 
           {/* Historial de Conversación */}
-          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-2">
+          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
             {oracleLog.map((msg, mIdx) => (
               <div
                 key={mIdx}
@@ -2749,7 +2983,32 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
                   <span className="font-bold text-cyan-400">
                     {msg.role === 'thalios' ? 'Thalios Solaris' : 'Iniciado'}
                   </span>
-                  {msg.source && <span className="text-slate-500">{msg.source}</span>}
+                  <div className="flex items-center gap-2">
+                    {msg.source && <span className="text-slate-500 hidden sm:inline">{msg.source}</span>}
+                    {msg.role === 'thalios' && (
+                      <button
+                        onClick={() => handleToggleSpeakMessage(msg.text, mIdx)}
+                        className={`px-2 py-0.5 rounded-lg border text-[9px] font-mono flex items-center gap-1 transition-all cursor-pointer ${
+                          activeSpokenMessageIdx === mIdx
+                            ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_8px_rgba(239,68,68,0.3)] animate-pulse'
+                            : 'bg-cyan-950/80 border-cyan-500/40 hover:bg-cyan-900/80 text-cyan-300 hover:text-white shadow-[0_0_8px_rgba(34,211,238,0.15)]'
+                        }`}
+                        title={activeSpokenMessageIdx === mIdx ? "Detener transmisión vocal" : "Escuchar esta respuesta con la voz de Thalios Solaris"}
+                      >
+                        {activeSpokenMessageIdx === mIdx ? (
+                          <>
+                            <Square size={9} className="fill-current text-red-400" />
+                            <span>Detener</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 size={10} className="text-cyan-400" />
+                            <span>Escuchar</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="leading-relaxed whitespace-pre-line">{msg.text}</p>
               </div>

@@ -4,8 +4,9 @@ import {
   MessageSquare, HelpCircle, Key, RefreshCw, Send, ArrowRightLeft, 
   Shield, Compass, Sparkle, Flame, Terminal, Lightbulb, CheckCircle2,
   Eye, EyeOff, Activity, AlertTriangle, RotateCcw, Zap, Scroll, Layers,
-  ArrowDown, ArrowRight, ChevronRight, Info, Hash
+  ArrowDown, ArrowRight, ChevronRight, Info, Hash, Square
 } from 'lucide-react';
+import { thaliosVoice } from '../services/thaliosVoiceService';
 import { TranslationResult, MorphemeToken } from '../types';
 import { 
   translateSpanishToTransversal, 
@@ -149,6 +150,33 @@ const Translator: React.FC = () => {
   const [keySavedMessage, setKeySavedMessage] = useState(false);
 
   const { traceInTaelim, setActiveTab, forgeCalligram } = useLexicon();
+
+  // Gestión de voz de Thalios Solaris para respuestas del oráculo
+  const [isSpeakingOracle, setIsSpeakingOracle] = useState(false);
+
+  useEffect(() => {
+    const unsub = thaliosVoice.subscribe((s) => {
+      if (!s.isSpeaking && !s.isPaused) {
+        setIsSpeakingOracle(false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleToggleSpeakOracleAnswer = () => {
+    if (!oracleAnswer) return;
+    if (isSpeakingOracle && thaliosVoice.getState().isSpeaking) {
+      thaliosVoice.stop();
+      setIsSpeakingOracle(false);
+      return;
+    }
+    setIsSpeakingOracle(true);
+    thaliosVoice.speak(oracleAnswer, {
+      title: 'Consultor Lingüístico Veyvān // Thalios Solaris',
+      onEnd: () => setIsSpeakingOracle(false),
+      onError: () => setIsSpeakingOracle(false)
+    });
+  };
 
   const handleConsult = async (overrideText?: string, overrideMode?: ConsultantMode) => {
     const textToProcess = overrideText !== undefined ? overrideText : inputText;
@@ -493,11 +521,34 @@ const Translator: React.FC = () => {
       {/* Oracle Response View (For Open Questions) */}
       {oracleAnswer && (
         <div className="border border-cyan-500/30 bg-black/60 backdrop-blur-2xl rounded-2xl p-6 md:p-8 space-y-5 shadow-[0_10px_50px_rgba(8,145,178,0.2)] animate-fade-in">
-          <div className="flex items-center gap-2.5 border-b border-white/10 pb-4">
-            <Sparkles size={16} className="text-cyan-400" />
-            <h3 className="text-sm font-bold font-rajdhani uppercase tracking-wider text-cyan-200">
-              Respuesta del Oráculo Thalios Solaris
-            </h3>
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div className="flex items-center gap-2.5">
+              <Sparkles size={16} className="text-cyan-400" />
+              <h3 className="text-sm font-bold font-rajdhani uppercase tracking-wider text-cyan-200">
+                Respuesta del Oráculo Thalios Solaris
+              </h3>
+            </div>
+            <button
+              onClick={handleToggleSpeakOracleAnswer}
+              className={`px-3 py-1 rounded-xl border text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                isSpeakingOracle
+                  ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse'
+                  : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/40 text-cyan-200 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+              }`}
+              title={isSpeakingOracle ? "Detener voz" : "Escuchar respuesta de Thalios Solaris"}
+            >
+              {isSpeakingOracle ? (
+                <>
+                  <Square size={11} className="fill-current text-red-400" />
+                  <span>Detener</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 size={12} className="text-cyan-400" />
+                  <span>Escuchar Veredicto</span>
+                </>
+              )}
+            </button>
           </div>
           <div className="prose prose-invert max-w-none text-sm text-slate-200 font-sans leading-relaxed whitespace-pre-wrap">
             {oracleAnswer}
