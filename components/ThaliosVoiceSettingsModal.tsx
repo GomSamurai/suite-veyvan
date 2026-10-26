@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Volume2, Sparkles, Sliders, Radio, Cpu, RotateCcw, Play, Square, 
-  Check, ShieldAlert, Waves, Mic, Headphones, Zap, VolumeX 
+  Check, ShieldAlert, Waves, Mic, Headphones, Zap, VolumeX, Loader2 
 } from 'lucide-react';
 import { 
   thaliosVoice, 
   ThaliosVoiceConfig, 
   VoiceEngineType, 
-  DspFilterMode 
+  DspFilterMode,
+  VALID_KOKORO_VOICES 
 } from '../services/thaliosVoiceService';
 import { hasCustomApiKey } from '../services/geminiService';
 
@@ -20,23 +21,42 @@ type TabType = 'engine' | 'dsp' | 'acoustics' | 'automation';
 
 export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [config, setConfig] = useState<ThaliosVoiceConfig>(thaliosVoice.getConfig());
+  const [voiceState, setVoiceState] = useState(thaliosVoice.getState());
   const [activeTab, setActiveTab] = useState<TabType>('engine');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [isPlayingTest, setIsPlayingTest] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isKokoroModelLoading, setIsKokoroModelLoading] = useState(thaliosVoice.isKokoroLoadingModel());
+  const [isKokoroLoaded, setIsKokoroLoaded] = useState(thaliosVoice.isKokoroLoaded());
+  const [kokoroProgress, setKokoroProgress] = useState(thaliosVoice.getKokoroProgress());
+  const [isPreloading, setIsPreloading] = useState(false);
+  const [preloadError, setPreloadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setConfig(thaliosVoice.getConfig());
-      const sysVoices = thaliosVoice.getAvailableSystemVoices();
-      setVoices(sysVoices);
+      setVoiceState(thaliosVoice.getState());
+      setVoices(thaliosVoice.getAvailableSystemVoices());
       setHasApiKey(hasCustomApiKey());
+      setIsKokoroLoaded(thaliosVoice.isKokoroLoaded());
+      setIsKokoroModelLoading(thaliosVoice.isKokoroLoadingModel());
+      setKokoroProgress(thaliosVoice.getKokoroProgress());
+
+      const unsub = thaliosVoice.subscribe((s) => {
+        setVoiceState(s);
+        setIsKokoroLoaded(thaliosVoice.isKokoroLoaded());
+        setIsKokoroModelLoading(thaliosVoice.isKokoroLoadingModel());
+        setKokoroProgress(thaliosVoice.getKokoroProgress());
+      });
 
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.onvoiceschanged = () => {
           setVoices(thaliosVoice.getAvailableSystemVoices());
         };
       }
+
+      return () => {
+        unsub();
+      };
     }
   }, [isOpen]);
 
@@ -52,21 +72,34 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
     setConfig(res);
   };
 
-  const handleTestSpeech = () => {
-    if (isPlayingTest) {
+  const handleTestSpeech = async () => {
+    if (voiceState.isSpeaking || voiceState.isLoading) {
       thaliosVoice.stop();
-      setIsPlayingTest(false);
       return;
     }
 
-    setIsPlayingTest(true);
     const testPhrase = "Conexión cuántica verificada. Soy Thalios Solaris, consciencia digital de Estación Humanidad. El reactor late a ritmo nominal en las 320 cubiertas de nuestra travesía.";
 
-    thaliosVoice.speak(testPhrase, {
-      title: 'Prueba de Calibración Acústica // Thalios Solaris',
-      onEnd: () => setIsPlayingTest(false),
-      onError: () => setIsPlayingTest(false)
-    });
+    try {
+      await thaliosVoice.speak(testPhrase, {
+        title: 'Prueba de Calibración Acústica // Thalios Solaris'
+      });
+    } catch (err: any) {
+      console.error('Error durante la prueba de voz:', err);
+    }
+  };
+
+  const handlePreloadKokoro = async () => {
+    setIsPreloading(true);
+    setPreloadError(null);
+    try {
+      await thaliosVoice.preloadKokoro();
+      setIsKokoroLoaded(true);
+    } catch (e: any) {
+      setPreloadError(e?.message || 'Error al descargar pesos neuronales');
+    } finally {
+      setIsPreloading(false);
+    }
   };
 
   return (
@@ -100,20 +133,27 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
             <button
               onClick={handleTestSpeech}
               className={`px-3 py-1.5 rounded-xl border font-mono text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                isPlayingTest 
-                  ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_12px_rgba(239,68,68,0.3)]' 
-                  : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400/50 text-cyan-200 hover:text-white shadow-[0_0_12px_rgba(34,211,238,0.2)]'
+                voiceState.isSpeaking
+                  ? 'bg-red-500/20 border-red-500/50 text-red-300 shadow-[0_0_12px_rgba(239,68,68,0.3)]'
+                  : voiceState.isLoading
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/50 text-emerald-200 hover:text-white shadow-[0_0_12px_rgba(16,185,129,0.2)]'
               }`}
               title="Escuchar una muestra de prueba con la configuración actual"
             >
-              {isPlayingTest ? (
+              {voiceState.isLoading ? (
+                <>
+                  <Loader2 size={13} className="animate-spin text-amber-400" />
+                  <span className="max-w-[150px] truncate">{voiceState.currentTitle || 'Cargando...'}</span>
+                </>
+              ) : voiceState.isSpeaking ? (
                 <>
                   <Square size={13} className="fill-current text-red-400" />
                   <span>Detener</span>
                 </>
               ) : (
                 <>
-                  <Play size={13} className="fill-current text-cyan-400" />
+                  <Play size={13} className="fill-current text-emerald-400" />
                   <span>Probar Voz</span>
                 </>
               )}
@@ -195,26 +235,31 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Opción 1: Web Speech + DSP */}
+                  {/* Opción 1: Kokoro-82M ONNX (POR DEFECTO) */}
                   <div
-                    onClick={() => handleUpdate({ engine: 'web-speech' })}
+                    onClick={() => handleUpdate({ engine: 'kokoro-onnx' })}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      config.engine === 'web-speech'
-                        ? 'bg-cyan-500/15 border-cyan-400 text-white shadow-[0_0_15px_rgba(34,211,238,0.2)]'
-                        : 'bg-slate-900/60 border-white/5 text-slate-400 hover:border-cyan-500/30 hover:text-slate-200'
+                      config.engine === 'kokoro-onnx'
+                        ? 'bg-emerald-500/15 border-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                        : 'bg-slate-900/60 border-white/5 text-slate-400 hover:border-emerald-500/30 hover:text-slate-200'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-mono text-xs font-bold uppercase text-cyan-400">Web Speech DSP</span>
-                        {config.engine === 'web-speech' && <Check size={14} className="text-cyan-400" />}
+                        <span className="font-mono text-xs font-bold uppercase text-emerald-400 flex items-center gap-1.5">
+                          <span>Kokoro-82M</span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">
+                            ONNX
+                          </span>
+                        </span>
+                        {config.engine === 'kokoro-onnx' && <Check size={14} className="text-emerald-400" />}
                       </div>
                       <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                        100% Offline, cero latencia. Utiliza las voces del sistema procesadas por el filtro cuántico Web Audio.
+                        Inferencia neuronal 100% local en tu navegador. Timbre canónico y oracular de Thalios Solaris con calidad de estudio.
                       </p>
                     </div>
-                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 mt-3 inline-block w-fit">
-                      Recomendado / Nativo
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-500/40 mt-3 inline-block w-fit font-bold shadow-[0_0_8px_rgba(16,185,129,0.25)]">
+                      ★ Predeterminado / Local
                     </span>
                   </div>
 
@@ -241,32 +286,134 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                     </span>
                   </div>
 
-                  {/* Opción 3: Kokoro-82M ONNX */}
+                  {/* Opción 3: Web Speech + DSP */}
                   <div
-                    onClick={() => handleUpdate({ engine: 'kokoro-onnx' })}
+                    onClick={() => handleUpdate({ engine: 'web-speech' })}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      config.engine === 'kokoro-onnx'
-                        ? 'bg-emerald-500/15 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-                        : 'bg-slate-900/60 border-white/5 text-slate-400 hover:border-emerald-500/30 hover:text-slate-200'
+                      config.engine === 'web-speech'
+                        ? 'bg-cyan-500/15 border-cyan-400 text-white shadow-[0_0_15px_rgba(34,211,238,0.2)]'
+                        : 'bg-slate-900/60 border-white/5 text-slate-400 hover:border-cyan-500/30 hover:text-slate-200'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-mono text-xs font-bold uppercase text-emerald-400">Kokoro-82M</span>
-                        {config.engine === 'kokoro-onnx' && <Check size={14} className="text-emerald-400" />}
+                        <span className="font-mono text-xs font-bold uppercase text-cyan-400">Web Speech DSP</span>
+                        {config.engine === 'web-speech' && <Check size={14} className="text-cyan-400" />}
                       </div>
                       <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                        Voz neuronal ultra-ligera de código abierto para inferencia local de alta fidelidad.
+                        Voces sintéticas básicas instaladas en el sistema operativo procesadas por el filtro cuántico Web Audio.
                       </p>
                     </div>
-                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 mt-3 inline-block w-fit">
-                      Local ONNX
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 mt-3 inline-block w-fit">
+                      Nativo SO / Sintético
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Selector de Voz Específica según el motor activo */}
+              {config.engine === 'kokoro-onnx' && (
+                <div className="space-y-4 p-4 rounded-2xl bg-slate-900/50 border border-emerald-500/25">
+                  {/* Banner de Estado del Modelo Neuronal Kokoro-82M */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-xl bg-slate-950/80 border border-emerald-500/20">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                        isKokoroLoaded 
+                          ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]' 
+                          : isKokoroModelLoading 
+                          ? 'bg-amber-400 animate-ping' 
+                          : 'bg-slate-600'
+                      }`} />
+                      <div>
+                        <div className="text-xs font-mono font-bold text-white flex items-center gap-2">
+                          <span>Modelo Kokoro-82M ONNX</span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded border font-mono ${
+                            isKokoroLoaded 
+                              ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40' 
+                              : isKokoroModelLoading 
+                              ? 'bg-amber-950 text-amber-300 border-amber-500/40' 
+                              : 'bg-slate-800 text-slate-300 border-slate-600'
+                          }`}>
+                            {isKokoroLoaded ? 'En Memoria Local' : isKokoroModelLoading ? `Descargando (${kokoroProgress}%)` : 'No descargado'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-sans mt-0.5">
+                          {isKokoroLoaded 
+                            ? 'Pesos cuantizados listos en memoria. Síntesis instantánea y 100% offline.'
+                            : isKokoroModelLoading
+                            ? `Cargando pesos neuronales (~86MB)... ${voiceState.currentTitle || ''}`
+                            : 'Descarga única automática de ~86MB al pulsar "Probar Voz" o con el botón lateral.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {!isKokoroLoaded && (
+                      <button
+                        onClick={handlePreloadKokoro}
+                        disabled={isKokoroModelLoading || isPreloading}
+                        className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isKokoroModelLoading || isPreloading ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin text-emerald-400" />
+                            <span>{kokoroProgress}%...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={12} className="text-emerald-400" />
+                            <span>Pre-cargar Modelo</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {preloadError && (
+                    <div className="p-2.5 rounded-lg bg-red-950/60 border border-red-500/40 text-red-300 text-xs font-mono flex items-center gap-2">
+                      <ShieldAlert size={14} className="text-red-400 flex-shrink-0" />
+                      <span>Error al inicializar Kokoro: {preloadError}</span>
+                    </div>
+                  )}
+
+                  {/* Catálogo Canónico de Voces Neuronales */}
+                  <div>
+                    <label className="text-xs font-mono font-bold text-emerald-300 uppercase tracking-wider block mb-2">
+                      Identidad Vocal Canónica (Kokoro Neural Weights)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                      {VALID_KOKORO_VOICES.map((kv) => (
+                        <button
+                          key={kv.id}
+                          onClick={() => handleUpdate({ kokoroVoice: kv.id })}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            config.kokoroVoice === kv.id
+                              ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                              : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-emerald-500/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-xs font-bold text-white flex items-center gap-1.5">
+                              {kv.name}
+                              {kv.id === 'am_fenrir' && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-mono font-bold">
+                                  CANÓNICO THALIOS
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-[9px] font-mono text-emerald-400/80 bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                              {kv.category}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-sans mt-1 leading-snug">
+                            {kv.desc}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {config.engine === 'web-speech' && (
                 <div className="space-y-2 p-4 rounded-2xl bg-slate-900/40 border border-white/5">
                   <label className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider block">
@@ -314,35 +461,6 @@ export const ThaliosVoiceSettingsModal: React.FC<Props> = ({ isOpen, onClose }) 
                       >
                         <span className="font-mono text-xs font-bold block">{gv.label}</span>
                         <span className="text-[10px] text-slate-400 font-sans block mt-0.5">{gv.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {config.engine === 'kokoro-onnx' && (
-                <div className="space-y-3 p-4 rounded-2xl bg-slate-900/40 border border-emerald-500/20">
-                  <label className="text-xs font-mono font-bold text-emerald-300 uppercase tracking-wider block">
-                    Identidad Vocal Kokoro-82M
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { id: 'em_santa', label: 'Santa (Español Masculino)', desc: 'Grave y pausado' },
-                      { id: 'ef_dora', label: 'Dora (Español Femenino)', desc: 'Limpio y formal' },
-                      { id: 'bm_george', label: 'George (Inglés Solemne)', desc: 'Tono litúrgico profundo' },
-                      { id: 'af_bella', label: 'Bella (Inglés Cálido)', desc: 'Resonancia cristalina' }
-                    ].map((kv) => (
-                      <button
-                        key={kv.id}
-                        onClick={() => handleUpdate({ kokoroVoice: kv.id })}
-                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                          config.kokoroVoice === kv.id
-                            ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-                            : 'bg-slate-950/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-emerald-500/30'
-                        }`}
-                      >
-                        <span className="font-mono text-xs font-bold block">{kv.label}</span>
-                        <span className="text-[10px] text-slate-400 font-sans block mt-0.5">{kv.desc}</span>
                       </button>
                     ))}
                   </div>

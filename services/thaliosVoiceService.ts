@@ -43,19 +43,40 @@ export interface ThaliosVoiceState {
   elapsedSeconds: number;
 }
 
-const STORAGE_KEY = 'thalios_voice_config_v1';
+export const VALID_KOKORO_VOICES = [
+  // Voces Masculinas
+  { id: 'am_fenrir', name: 'Fenrir', category: 'Masculino (Canónico Thalios)', desc: 'Grave, solemne y marcial. Timbre oracular oficial de Thalios Solaris.' },
+  { id: 'am_adam', name: 'Adam', category: 'Masculino (Rector)', desc: 'Autoritaria, pausada y firme. Dirección de la Estación.' },
+  { id: 'am_michael', name: 'Michael', category: 'Masculino (Técnico)', desc: 'Moderna, neutral y cristalina. Protocolos cuánticos.' },
+  { id: 'am_santa', name: 'Santa', category: 'Masculino (Baja Frecuencia)', desc: 'Profunda y densa. Resonancia del reactor principal.' },
+  { id: 'bm_george', name: 'George', category: 'Masculino (Británico Solemne)', desc: 'Tono litúrgico, templado y ceremonioso.' },
+  { id: 'bm_fable', name: 'Fable', category: 'Masculino (Cronista)', desc: 'Cadencia de narración épica para bitácoras y lore histórico.' },
+  // Voces Femeninas
+  { id: 'af_bella', name: 'Bella', category: 'Femenino (Cálida)', desc: 'Gran inteligibilidad y calidez. Resonancia cristalina.' },
+  { id: 'af_heart', name: 'Heart', category: 'Femenino (Emotiva)', desc: 'Máxima calidad neural A ❤️. Suavidad orgánica de alta fidelidad.' },
+  { id: 'af_nicole', name: 'Nicole', category: 'Femenino (Táctica)', desc: 'Comunicaciones dinámicas y avisos de interfaz de cabina.' },
+  { id: 'af_kore', name: 'Kore', category: 'Femenino (Archivista)', desc: 'Impasible y analítica. Lectura enciclopédica de datos.' },
+  { id: 'af_sky', name: 'Sky', category: 'Femenino (Oráculo)', desc: 'Etérea y serena. Proyecciones oraculares del Émulo.' },
+  { id: 'bf_emma', name: 'Emma', category: 'Femenino (Aristocrática)', desc: 'Tono formal británico, dicción impecable del alto mando.' },
+] as const;
+
+export type KokoroVoiceId = typeof VALID_KOKORO_VOICES[number]['id'];
+export const VALID_KOKORO_VOICE_IDS = new Set(VALID_KOKORO_VOICES.map(v => v.id));
+
+const STORAGE_KEY_V2 = 'thalios_voice_config_v2';
+const STORAGE_KEY_V1 = 'thalios_voice_config_v1';
 
 export const DEFAULT_VOICE_CONFIG: ThaliosVoiceConfig = {
-  engine: 'web-speech',
+  engine: 'kokoro-onnx',
   voiceUri: '',
   geminiVoice: 'Charon',
-  kokoroVoice: 'em_santa',
-  rate: 0.92,
+  kokoroVoice: 'am_fenrir',
+  rate: 0.95,
   pitch: 0.88,
   volume: 0.90,
   enableDspFilter: true,
   dspMode: 'orbital',
-  dspIntensity: 0.55,
+  dspIntensity: 0.45,
   enableTransmissionChimes: true,
   enableIntercomStatic: true,
   autoNarrateOracle: false,
@@ -79,6 +100,7 @@ class ThaliosVoiceService {
   
   // Elementos de reproducción de audio externo (Gemini/Kokoro)
   private currentAudioElement: HTMLAudioElement | null = null;
+  private currentBufferSource: AudioBufferSourceNode | null = null;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   
   // Temporizadores
@@ -131,9 +153,29 @@ class ThaliosVoiceService {
   private loadConfig(): ThaliosVoiceConfig {
     if (typeof window === 'undefined') return DEFAULT_VOICE_CONFIG;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return DEFAULT_VOICE_CONFIG;
-      return { ...DEFAULT_VOICE_CONFIG, ...JSON.parse(raw) };
+      // 1. Intentar cargar v2
+      const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
+      if (rawV2) {
+        const parsed = JSON.parse(rawV2);
+        if (!parsed.kokoroVoice || !VALID_KOKORO_VOICE_IDS.has(parsed.kokoroVoice as any)) {
+          parsed.kokoroVoice = 'am_fenrir';
+        }
+        return { ...DEFAULT_VOICE_CONFIG, ...parsed };
+      }
+
+      // 2. Migración desde v1
+      const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
+      if (rawV1) {
+        const parsed = JSON.parse(rawV1);
+        // Migrar forzando Kokoro-82M como motor por defecto canónico
+        parsed.engine = 'kokoro-onnx';
+        parsed.kokoroVoice = 'am_fenrir';
+        const migrated = { ...DEFAULT_VOICE_CONFIG, ...parsed };
+        localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(migrated));
+        return migrated;
+      }
+
+      return DEFAULT_VOICE_CONFIG;
     } catch {
       return DEFAULT_VOICE_CONFIG;
     }
@@ -142,7 +184,7 @@ class ThaliosVoiceService {
   private saveConfig(): void {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.config));
+      localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(this.config));
     } catch (e) {
       console.warn('Error al guardar configuración de voz de Thalios:', e);
     }
@@ -426,14 +468,9 @@ class ThaliosVoiceService {
         await this.speakWithWebSpeech(cleanText, options);
       }
     } catch (err) {
-      console.warn(`Error en motor ${engine}, recurriendo a Web Speech como respaldo:`, err);
-      // Fallback a Web Speech en caso de fallo
-      try {
-        await this.speakWithWebSpeech(cleanText, options);
-      } catch (fallbackErr) {
-        this.stop();
-        if (options.onError) options.onError(fallbackErr);
-      }
+      console.error(`Error en síntesis con motor ${engine}:`, err);
+      this.stop();
+      if (options.onError) options.onError(err);
     }
   }
 
@@ -549,16 +586,204 @@ class ThaliosVoiceService {
   }
 
   // ---------------------------------------------------------------------------
-  // MOTOR 3: KOKORO-82M ONNX (LOCAL NEURONAL)
+  // MOTOR 3: KOKORO-82M ONNX (LOCAL NEURONAL REAL)
   // ---------------------------------------------------------------------------
+  private kokoroInstance: any = null;
+  private isKokoroLoading: boolean = false;
+  private kokoroDownloadProgress: number = 0;
+
+  public getKokoroProgress(): number {
+    return this.kokoroDownloadProgress;
+  }
+
+  public isKokoroLoaded(): boolean {
+    return !!this.kokoroInstance;
+  }
+
+  public isKokoroLoadingModel(): boolean {
+    return this.isKokoroLoading;
+  }
+
+  public async preloadKokoro(): Promise<void> {
+    await this.getKokoro();
+  }
+
+  public async getKokoro(): Promise<any> {
+    if (this.kokoroInstance) return this.kokoroInstance;
+    if (this.isKokoroLoading) {
+      while (this.isKokoroLoading) {
+        await new Promise(r => setTimeout(r, 150));
+      }
+      if (this.kokoroInstance) return this.kokoroInstance;
+    }
+
+    this.isKokoroLoading = true;
+    this.kokoroDownloadProgress = 0;
+    try {
+      const { KokoroTTS } = await import('kokoro-js');
+      this.kokoroInstance = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+        dtype: 'q8',
+        device: 'wasm',
+        progress_callback: (info: any) => {
+          if (info && typeof info.progress === 'number') {
+            const pct = Math.round(info.progress * 100);
+            this.kokoroDownloadProgress = pct;
+            this.state.currentTitle = `Descargando modelo Kokoro-82M (${pct}%)...`;
+            this.notifyListeners();
+          }
+        }
+      });
+      this.isKokoroLoading = false;
+      this.kokoroDownloadProgress = 100;
+      this.notifyListeners();
+      return this.kokoroInstance;
+    } catch (err) {
+      this.isKokoroLoading = false;
+      this.kokoroDownloadProgress = 0;
+      this.notifyListeners();
+      throw err;
+    }
+  }
+
   private async speakWithKokoro(
     text: string, 
     options: { onEnd?: () => void; onError?: (err: any) => void }
   ): Promise<void> {
-    // Si no está cargado el módulo de Kokoro, advertir y recurrir a Web Speech
-    console.info('Kokoro-82M ONNX seleccionado para voz neuronal local.');
-    // Usar Web Speech con DSP mejorado como puente nativo de alta calidad
-    return this.speakWithWebSpeech(text, options);
+    try {
+      this.state.isLoading = true;
+      this.state.currentTitle = 'Sintetizando con Kokoro-82M ONNX...';
+      this.notifyListeners();
+
+      const tts = await this.getKokoro();
+
+      // Limitar longitud de texto por bloque para mantener la respuesta fluida
+      const cleanSnippet = text.length > 800 ? text.slice(0, 800) + '...' : text;
+      
+      let voiceKey = this.config.kokoroVoice || 'am_fenrir';
+      if (!VALID_KOKORO_VOICE_IDS.has(voiceKey as any)) {
+        voiceKey = 'am_fenrir';
+      }
+
+      const audio = await tts.generate(cleanSnippet, {
+        voice: voiceKey,
+        speed: Math.max(0.7, Math.min(1.3, this.config.rate || 1.0))
+      });
+
+      // Reproducción directa de alta fidelidad vía Web Audio Buffer
+      if (audio && audio.audio && audio.audio instanceof Float32Array) {
+        await this.playAudioBuffer(audio.audio, audio.sampling_rate || 24000, options);
+      } else {
+        const blob = audio.toBlob ? audio.toBlob() : new Blob([audio.toWav()], { type: 'audio/wav' });
+        await this.playAudioFromBlob(blob, options);
+      }
+    } catch (err: any) {
+      console.error('Fallo en síntesis con Kokoro-82M ONNX:', err);
+      this.state.isLoading = false;
+      this.notifyListeners();
+      throw err;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // REPRODUCCIÓN DE AUDIO DIRECTO DESDE BUFFER (KOKORO-82M NATIVO WEB AUDIO)
+  // ---------------------------------------------------------------------------
+  private playAudioBuffer(
+    samples: Float32Array,
+    sampleRate: number = 24000,
+    options: { onEnd?: () => void; onError?: (err: any) => void }
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ctx = this.initAudioContext();
+      if (!ctx || !this.biquadFilter) {
+        reject(new Error('AudioContext no inicializado'));
+        return;
+      }
+
+      try {
+        const audioBuffer = ctx.createBuffer(1, samples.length, sampleRate);
+        audioBuffer.getChannelData(0).set(samples);
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        this.currentBufferSource = source;
+
+        // Conectar a la cadena DSP de Estación
+        source.connect(this.biquadFilter);
+
+        this.state.isLoading = false;
+        this.notifyListeners();
+
+        let ended = false;
+        source.onended = async () => {
+          if (ended) return;
+          ended = true;
+          this.currentBufferSource = null;
+          this.setIntercomStatic(false);
+          await this.playTransmissionChime('close');
+          this.stop();
+          if (options.onEnd) options.onEnd();
+          resolve();
+        };
+
+        source.start();
+      } catch (err) {
+        this.setIntercomStatic(false);
+        this.stop();
+        if (options.onError) options.onError(err);
+        reject(err);
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // REPRODUCCIÓN DE AUDIO EN FORMATO BLOB (KOKORO-82M FALLBACK)
+  // ---------------------------------------------------------------------------
+  private playAudioFromBlob(
+    blob: Blob,
+    options: { onEnd?: () => void; onError?: (err: any) => void }
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      this.currentAudioElement = audio;
+
+      audio.volume = this.config.volume;
+      audio.playbackRate = 1.0;
+
+      const ctx = this.initAudioContext();
+      if (ctx && this.biquadFilter) {
+        try {
+          this.currentSourceNode = ctx.createMediaElementSource(audio);
+          this.currentSourceNode.connect(this.biquadFilter);
+        } catch {
+          // Si ya está conectado o hay restricción, audio.play funcionará normalmente
+        }
+      }
+
+      audio.onplay = () => {
+        this.state.isLoading = false;
+        this.notifyListeners();
+      };
+
+      audio.onended = async () => {
+        URL.revokeObjectURL(audioUrl);
+        this.setIntercomStatic(false);
+        await this.playTransmissionChime('close');
+        this.stop();
+        if (options.onEnd) options.onEnd();
+        resolve();
+      };
+
+      audio.onerror = (e) => {
+        URL.revokeObjectURL(audioUrl);
+        this.setIntercomStatic(false);
+        this.stop();
+        if (options.onError) options.onError(e);
+        reject(e);
+      };
+
+      audio.play().catch(reject);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -619,6 +844,8 @@ class ThaliosVoiceService {
 
     if (this.currentAudioElement) {
       this.currentAudioElement.pause();
+    } else if (this.currentBufferSource && this.audioCtx) {
+      this.audioCtx.suspend().catch(() => {});
     } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.pause();
     }
@@ -633,6 +860,8 @@ class ThaliosVoiceService {
 
     if (this.currentAudioElement) {
       this.currentAudioElement.play().catch(() => {});
+    } else if (this.currentBufferSource && this.audioCtx) {
+      this.audioCtx.resume().catch(() => {});
     } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.resume();
     }
@@ -645,6 +874,19 @@ class ThaliosVoiceService {
   public stop(notify: boolean = true): void {
     this.stopElapsedTimer();
     this.setIntercomStatic(false);
+
+    if (this.currentBufferSource) {
+      try {
+        this.currentBufferSource.onended = null;
+        this.currentBufferSource.stop();
+        this.currentBufferSource.disconnect();
+      } catch {}
+      this.currentBufferSource = null;
+    }
+
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
 
     if (this.currentAudioElement) {
       try {
