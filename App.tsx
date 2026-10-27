@@ -171,7 +171,9 @@ const App: React.FC = () => {
           </div>
 
           <div className={activeTab === 'constructor' ? 'block animate-fade-in' : 'hidden'}>
-            <Constructor onAddTerm={addTerm} />
+            <SafeBoundary name="Forja de Radicales">
+              <Constructor onAddTerm={addTerm} existingTerms={terms} />
+            </SafeBoundary>
           </div>
 
           <div className={activeTab === 'stats' ? 'block animate-fade-in' : 'hidden'}>
