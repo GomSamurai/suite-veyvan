@@ -19,7 +19,8 @@ import {
   Headphones, 
   ChevronLeft, 
   ChevronRight,
-  Radio
+  Radio,
+  LayoutGrid
 } from 'lucide-react';
 import { toggleAmbientHum } from '../utils/taelimAudio';
 import { NavigationTab } from '../types';
@@ -102,6 +103,15 @@ const NAV_ITEMS: NavItem[] = [
     accent: 'amber',
     group: 'CALIGRAFÍA',
     badge: 'VOHN'
+  },
+  {
+    id: 'matrixCompositor',
+    label: "Matriz Tael'im",
+    subtitle: "Compositor 24 Fonemas",
+    icon: LayoutGrid,
+    accent: 'cyan',
+    group: 'CALIGRAFÍA',
+    badge: 'MAT'
   },
   // Grupo Universo & Telemetría
   {

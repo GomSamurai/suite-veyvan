@@ -13,6 +13,7 @@ import { useLexicon } from './context/LexiconContext';
 import HorocronoRoot from './components/horocrono/HorocronoRoot';
 import { ThaliosAudioHUD } from './components/ThaliosAudioHUD';
 import { ThaliosVoiceSettingsModal } from './components/ThaliosVoiceSettingsModal';
+import MatrixCompositorStudio from './components/matrix-compositor/MatrixCompositorStudio';
 
 class SafeBoundary extends React.Component<{ children: React.ReactNode; name: string }, { hasError: boolean; error: string }> {
   constructor(props: any) {
@@ -127,7 +128,7 @@ const App: React.FC = () => {
       
       {/* Columna Principal de Trabajo & Vistas */}
       <div className="flex-1 h-screen flex flex-col min-w-0 overflow-hidden relative">
-        <main className="flex-1 overflow-y-auto w-full py-4 sm:py-6 px-3 sm:px-8 relative custom-scrollbar z-10">
+        <main className={`flex-1 w-full relative custom-scrollbar z-10 ${activeTab === 'matrixCompositor' ? 'p-1.5 sm:p-2 overflow-hidden flex flex-col' : 'overflow-y-auto py-4 sm:py-6 px-3 sm:px-8'}`}>
           <div className={activeTab === 'glossary' ? 'block animate-fade-in' : 'hidden'}>
             <GlossaryList terms={terms} onUpdateTerm={updateTerm} />
           </div>
@@ -144,6 +145,14 @@ const App: React.FC = () => {
                onDeletePreset={handleDeletePreset}
                onImportSession={handleImport}
              />
+          </div>
+
+          <div className={activeTab === 'matrixCompositor' ? 'block h-full flex-1 min-h-0 animate-fade-in' : 'hidden'}>
+            {activeTab === 'matrixCompositor' && (
+              <SafeBoundary name="Compositor de Matrices Tael'im">
+                <MatrixCompositorStudio />
+              </SafeBoundary>
+            )}
           </div>
 
           <div className={activeTab === 'calligram' ? 'block animate-fade-in' : 'hidden'}>

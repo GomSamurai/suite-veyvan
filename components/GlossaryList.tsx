@@ -70,7 +70,7 @@ const GlossaryCard: React.FC<GlossaryCardProps> = ({
 
     setIsPlayingAudio(true);
     const textToSpeak = narrateFull
-      ? `${term.root}. ${term.spanishTranslation || term.meaning || ''}. ${term.description || ''}`
+      ? `${term.root}. ${(term as any).spanishTranslation || term.meaning || ''}. ${term.description || ''}`
       : term.root;
 
     thaliosVoice.speak(textToSpeak, {

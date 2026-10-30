@@ -854,7 +854,7 @@ Responde a la siguiente consulta del iniciado sobre el lore de la nave:
 
           {/* Reloj Activo del Cronosistema Aislado */}
           <StationLiveClock
-            yearCurrent={loreStore.metrics.yearCurrent}
+            yearCurrent={String(loreStore.metrics.yearCurrent)}
             currentLocation={loreStore.metrics.currentLocation}
           />
         </div>

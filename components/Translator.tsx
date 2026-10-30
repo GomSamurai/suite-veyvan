@@ -183,6 +183,8 @@ const Translator: React.FC = () => {
     handleSpeakText('oracle-answer', oracleAnswer, 'Consultor Lingüístico Veyvān // Thalios Solaris');
   };
 
+  const isSpeakingOracle = activeSpokenId === 'oracle-answer';
+
   const handleConsult = async (overrideText?: string, overrideMode?: ConsultantMode) => {
     const textToProcess = overrideText !== undefined ? overrideText : inputText;
     const activeMode = overrideMode || mode;

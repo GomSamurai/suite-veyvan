@@ -102,7 +102,7 @@ const Taelim: React.FC<Props> = ({ terms = [], customPresets = [], onSavePreset,
   // Animation State
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationFrame, setAnimationFrame] = useState(0);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   

@@ -8,7 +8,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class'
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              veyvan: {
+                gold: '#e9c47e',
+                cyan: '#75e4de',
+                purple: '#c084fc',
+                dark: '#060a12',
+                panel: '#0a121e',
+                border: '#1f2e42'
+              }
+            }
+          }
+        }
       };
       (function() {
         try {

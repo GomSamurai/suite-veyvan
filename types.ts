@@ -7,7 +7,7 @@ export enum Tonality {
   MIXED = 'Mixta'
 }
 
-export type NavigationTab = 'glossary' | 'stats' | 'translator' | 'constructor' | 'taelim' | 'codex' | 'academy' | 'calligram' | 'lore';
+export type NavigationTab = 'glossary' | 'stats' | 'translator' | 'constructor' | 'taelim' | 'codex' | 'academy' | 'calligram' | 'lore' | 'matrixCompositor';
 
 // Tipologías y Geometría Sagrada de Caligramas Tael'vohn
 export type CalligramGeometry = 'mandala' | 'estela' | 'delta' | 'diamante' | 'infinito' | 'asemic';

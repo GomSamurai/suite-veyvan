@@ -348,7 +348,7 @@ const CalligramStudio: React.FC = () => {
     try {
       return parseTaelimExpression(expression);
     } catch {
-      return { units: [], bridgeArcs: [] };
+      return { units: [], arcs: [], isMultiUnit: false };
     }
   }, [expression]);
 
@@ -1867,7 +1867,7 @@ const CalligramStudio: React.FC = () => {
                       onClick={() => {
                         setExpression("Dun'Val'Thy");
                         setTargetCalligramExpression("Dun'Val'Thy");
-                        setSelectedRadicalIndex(null);
+                        setSelectedRadicalIndices([]);
                       }}
                       className="w-full py-2.5 px-4 rounded-xl bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-500/50 text-cyan-200 text-xs font-mono font-bold tracking-wider uppercase transition-all shadow-[0_0_12px_rgba(34,211,238,0.2)] cursor-pointer"
                     >

@@ -855,8 +855,10 @@ export function generateCalligramSvg(
   };
 
   const parsed = parseTaelimExpression(expression || '');
-  const units = parsed.units.length > 0 ? parsed.units : [
+  const units: GlyphUnit[] = parsed.units.length > 0 ? parsed.units : [
     {
+      id: 'default-unit',
+      originalText: 'Vael',
       rootText: 'Vael',
       cleanRoot: 'Vael',
       prefixId: null,
@@ -1421,8 +1423,8 @@ export function generateCalligramSvg(
  */
 export function computeCalligramBounds(expression: string, config: CalligramConfig) {
   const parsed = parseTaelimExpression(expression || '');
-  const units = parsed.units.length > 0 ? parsed.units : [
-    { rootText: 'Vael', cleanRoot: 'Vael', prefixId: null, infixId: null, suffixId: null }
+  const units: GlyphUnit[] = parsed.units.length > 0 ? parsed.units : [
+    { id: 'default-unit', originalText: 'Vael', rootText: 'Vael', cleanRoot: 'Vael', prefixId: null, infixId: null, suffixId: null }
   ];
   const archetypeBases = computeArchetypePlacements(units, config);
 
